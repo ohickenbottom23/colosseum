@@ -88,12 +88,20 @@ describe("glory", () => {
   });
 
   it("being right alone pays way more than being right with the crowd", () => {
-    expect(gloryForWin(50, 1)).toBe(12);
-    expect(gloryForWin(50, 0)).toBe(2);
+    expect(gloryForWin(50, 1)).toBe(60);
+    expect(gloryForWin(50, 0)).toBe(10);
+  });
+
+  it("a 10 token win moves glory a real amount", () => {
+    // 10 tokens is a stake factor of 0.2
+    expect(gloryForWin(10, 0)).toBe(2); // with the crowd
+    expect(gloryForWin(10, 0.5)).toBe(7); // half against you
+    expect(gloryForWin(10, 1)).toBe(12); // alone
+    expect(gloryForLoss(10)).toBe(5);
   });
 
   it("losing costs less than winning gives", () => {
-    expect(gloryForLoss(50)).toBe(5);
+    expect(gloryForLoss(50)).toBe(25);
     expect(gloryForLoss(50)).toBeLessThan(gloryForWin(50, 0.5));
   });
 
@@ -233,10 +241,10 @@ describe("full settle", () => {
     const maya = payouts.find((x) => x.uid === "maya")!;
 
     expect(owen.won).toBe(true);
-    expect(owen.gloryChange).toBe(12);
+    expect(owen.gloryChange).toBe(60);
     expect(owen.tokenChange).toBe(200);
     expect(maya.won).toBe(false);
-    expect(maya.gloryChange).toBe(-5);
+    expect(maya.gloryChange).toBe(-25);
     expect(maya.tokenChange).toBe(0);
   });
 });
@@ -480,7 +488,7 @@ describe("what you'd get if you're right", () => {
     expect(preview).toEqual(real);
     // stake back plus 2/3 of jake's 30, and glory for being half against the crowd
     expect(preview.tokenChange).toBe(40);
-    expect(preview.gloryChange).toBe(2.8);
+    expect(preview.gloryChange).toBe(14);
   });
 
   it("going against everyone pays more glory than going with them", () => {

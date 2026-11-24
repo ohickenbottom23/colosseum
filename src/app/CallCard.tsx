@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { callText, picksCloseText, timeLeft } from "@/format";
+import { callText, cardTimeText } from "@/format";
 import { picksCloseAt } from "@/lib/resolve";
 import { Prediction } from "@/lib/types";
 
@@ -18,7 +18,7 @@ export default function CallCard({
   const about = call.subjectId ? nameOf(call.subjectId) : call.subjectLabel;
   // while picks are open that's the time that matters, after that it's the deadline
   const closeAt = picksCloseAt(call);
-  const when = now < closeAt ? picksCloseText(closeAt, now) : timeLeft(call.deadline, now);
+  const when = cardTimeText(closeAt, call.deadline, now);
 
   return (
     <li>

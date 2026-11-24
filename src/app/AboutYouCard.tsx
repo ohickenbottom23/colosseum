@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { picksCloseText, timeLeft } from "@/format";
+import { cardTimeText } from "@/format";
 import { picksCloseAt } from "@/lib/resolve";
 import { Position, Prediction } from "@/lib/types";
 import TakeDown from "./TakeDown";
@@ -17,7 +17,7 @@ export default function AboutYouCard({
   now: number;
 }) {
   const closeAt = picksCloseAt(call);
-  const when = now < closeAt ? picksCloseText(closeAt, now) : timeLeft(call.deadline, now);
+  const when = cardTimeText(closeAt, call.deadline, now);
 
   return (
     <li className="call">

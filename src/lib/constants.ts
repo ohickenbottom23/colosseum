@@ -3,8 +3,8 @@
 export const START_GLORY = 100;
 export const GLORY_FLOOR = 100;
 
-export const WIN_BASE = 10; // glory for a full stake win when you were alone against everyone
-export const LOSS_BASE = 5; // glory lost on a full stake loss, half of a win
+export const WIN_BASE = 50; // glory for a full stake win when you were alone against everyone (x1.2 with CROWD_MIN)
+export const LOSS_BASE = 25; // glory lost on a full stake loss, half of a win
 export const CROWD_MIN = 0.2; // even agreeing with everyone pays a little
 
 export const START_TOKENS = 50; // what a brand new player gets

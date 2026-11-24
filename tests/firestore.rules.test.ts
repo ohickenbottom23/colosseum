@@ -125,6 +125,30 @@ describe("positions", () => {
     await assertFails(setDoc(doc(as("maya"), "predictions/p1/positions/maya"), { uid: "maya", predictionId: "p1", side: "yes", stake: 10 }));
   });
 
+  it("you can't sneak in a pick after picks close by writing to Firestore yourself", async () => {
+    // posted 2 days ago, deadline tomorrow, so picks closed half a day ago
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "predictions/late"), {
+        text: "Late call",
+        creatorId: "maya",
+        status: "open",
+        createdAt: now - 2 * day,
+        deadline: now + day,
+      });
+    });
+    await assertFails(
+      setDoc(doc(as("jake"), "predictions/late/positions/jake"), {
+        uid: "jake",
+        predictionId: "late",
+        side: "no",
+        stake: 10,
+        createdAt: now,
+      })
+    );
+  });
+
   it("you can't switch sides or change your stake", async () => {
     await assertFails(updateDoc(doc(as("jake"), "predictions/p1/positions/jake"), { side: "yes" }));
     await assertFails(updateDoc(doc(as("jake"), "predictions/p1/positions/jake"), { stake: 1 }));

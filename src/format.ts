@@ -52,3 +52,11 @@ export const REMOVED_TEXT = "Removed by the person it was about";
 export function callText(text: string): string {
   return text || REMOVED_TEXT;
 }
+
+// the time line on a home card for an open call:
+// "Picks close in 2 days", then "Picks closed · resolves in 23 hours", then "Deadline passed"
+export function cardTimeText(closeAt: number, deadline: number, now: number): string {
+  if (now < closeAt) return picksCloseText(closeAt, now);
+  const left = timeUntil(deadline, now);
+  return left ? `Picks closed · resolves in ${left}` : "Deadline passed";
+}
