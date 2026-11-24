@@ -8,7 +8,7 @@ import {
   assertSucceeds,
   RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, setLogLevel } from "firebase/firestore";
+import { collectionGroup, doc, getDoc, getDocs, query, where, setDoc, updateDoc, deleteDoc, setLogLevel } from "firebase/firestore";
 
 // the denied writes are supposed to fail, so don't print a warning for each one
 setLogLevel("error");
@@ -93,6 +93,40 @@ describe("predictions", () => {
   it("not even the creator can edit or delete a call directly", async () => {
     await assertFails(updateDoc(doc(as("maya"), "predictions/p1"), { status: "resolved", outcome: "yes" }));
     await assertFails(deleteDoc(doc(as("maya"), "predictions/p1")));
+  });
+});
+
+describe("positions", () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "predictions/p1"), { text: "Jake skips class", creatorId: "maya", status: "open" });
+      await setDoc(doc(ctx.firestore(), "predictions/p1/positions/jake"), { uid: "jake", predictionId: "p1", side: "no", stake: 10 });
+    });
+  });
+
+  it("signed in players can see who picked which side", async () => {
+    await assertSucceeds(getDoc(doc(as("maya"), "predictions/p1/positions/jake")));
+  });
+
+  it("you can find all your positions across calls", async () => {
+    await assertSucceeds(getDocs(query(collectionGroup(as("jake"), "positions"), where("uid", "==", "jake"))));
+  });
+
+  it("signed out people can't see positions", async () => {
+    await assertFails(getDoc(doc(signedOut(), "predictions/p1/positions/jake")));
+  });
+
+  it("you can't pick a side directly and skip paying tokens", async () => {
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/positions/maya"), { uid: "maya", predictionId: "p1", side: "yes", stake: 10 }));
+  });
+
+  it("you can't switch sides or change your stake", async () => {
+    await assertFails(updateDoc(doc(as("jake"), "predictions/p1/positions/jake"), { side: "yes" }));
+    await assertFails(updateDoc(doc(as("jake"), "predictions/p1/positions/jake"), { stake: 1 }));
+  });
+
+  it("you can't delete your position to get out of it", async () => {
+    await assertFails(deleteDoc(doc(as("jake"), "predictions/p1/positions/jake")));
   });
 });
 

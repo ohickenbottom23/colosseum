@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, User as AuthUser } from "firebase/auth";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, collectionGroup, doc, onSnapshot, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "@/firebase";
-import { User } from "@/lib/types";
+import { Position, User } from "@/lib/types";
 
 // who's signed in. also makes sure their player record exists the first time
 export function useAuthUser() {
@@ -40,4 +40,43 @@ export function usePlayers(signedIn: boolean) {
   }, [signedIn]);
 
   return players;
+}
+
+// one player's record, kept in sync (your glory and tokens)
+export function usePlayer(uid: string | null) {
+  const [player, setPlayer] = useState<User | null>(null);
+
+  useEffect(() => {
+    if (!uid) {
+      setPlayer(null);
+      return;
+    }
+    return onSnapshot(
+      doc(db, "users", uid),
+      (snap) => setPlayer(snap.exists() ? (snap.data() as User) : null),
+      () => setPlayer(null)
+    );
+  }, [uid]);
+
+  return player;
+}
+
+// every side you've picked, by call id, so we know which calls still need you
+export function useMyPositions(uid: string | null) {
+  const [positions, setPositions] = useState<Map<string, Position>>(new Map());
+
+  useEffect(() => {
+    if (!uid) {
+      setPositions(new Map());
+      return;
+    }
+    const q = query(collectionGroup(db, "positions"), where("uid", "==", uid));
+    return onSnapshot(
+      q,
+      (snap) => setPositions(new Map(snap.docs.map((d) => [d.data().predictionId, d.data() as Position]))),
+      () => setPositions(new Map())
+    );
+  }, [uid]);
+
+  return positions;
 }

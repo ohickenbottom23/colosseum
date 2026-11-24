@@ -23,6 +23,7 @@ import { deadlineFromPreset, validateNewCall, NewCall } from "./calls";
 // little helpers so tests are shorter
 const pos = (uid: string, side: "yes" | "no", stake: number): Position => ({
   uid,
+  predictionId: "p1",
   side,
   stake,
   createdAt: 0,

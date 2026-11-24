@@ -59,6 +59,7 @@ export interface Prediction {
 
 export interface Position {
   uid: string;
+  predictionId: string; // so we can find all of someone's positions in one query
   side: Side;
   stake: number;
   createdAt: number;

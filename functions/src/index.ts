@@ -2,7 +2,8 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { START_GLORY, START_TOKENS } from "../../src/lib/constants";
-import { Prediction, User } from "../../src/lib/types";
+import { Position, Prediction, Side, User } from "../../src/lib/types";
+import { canTakeSide } from "../../src/lib/resolve";
 import { NewCall, validateNewCall } from "../../src/lib/calls";
 
 initializeApp();
@@ -93,4 +94,54 @@ export const createCall = onCall(async (request) => {
   await ref.set(prediction);
 
   return { id: ref.id };
+});
+
+// pick a side on a call. takes the tokens and saves your side in one transaction,
+// so double taps or spending more than you have can't sneak through
+export const takeSide = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first");
+  }
+
+  const data = request.data ?? {};
+  const predictionId = typeof data.predictionId === "string" ? data.predictionId : "";
+  const side = data.side;
+  const stake = typeof data.stake === "number" ? data.stake : NaN;
+
+  // no slashes, or the id could point somewhere else in the database
+  if (!predictionId || predictionId.includes("/")) {
+    throw new HttpsError("invalid-argument", "That call doesn't exist");
+  }
+  if (side !== "yes" && side !== "no") {
+    throw new HttpsError("invalid-argument", "Pick yes or no");
+  }
+
+  const uid = request.auth.uid;
+  const predictionRef = db.doc(`predictions/${predictionId}`);
+  const userRef = db.doc(`users/${uid}`);
+  const positionRef = db.doc(`predictions/${predictionId}/positions/${uid}`);
+
+  await db.runTransaction(async (tx) => {
+    const [predictionSnap, userSnap, positionSnap] = await Promise.all([
+      tx.get(predictionRef),
+      tx.get(userRef),
+      tx.get(positionRef),
+    ]);
+
+    if (!predictionSnap.exists) throw new HttpsError("not-found", "That call doesn't exist");
+    if (!userSnap.exists) throw new HttpsError("failed-precondition", "Your account isn't set up yet");
+
+    const prediction = predictionSnap.data() as Prediction;
+    const user = userSnap.data() as User;
+    const now = Date.now();
+
+    const problem = canTakeSide(prediction, user, stake, positionSnap.exists, now);
+    if (problem) throw new HttpsError("failed-precondition", problem);
+
+    const position: Position = { uid, predictionId, side: side as Side, stake, createdAt: now };
+    tx.set(positionRef, position);
+    tx.update(userRef, { tokens: user.tokens - stake });
+  });
+
+  return { ok: true };
 });

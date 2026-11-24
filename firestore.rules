@@ -17,6 +17,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // who picked which side. everyone signed in can see them (names and sides show
+    // before the deadline). written only by the takeSide Cloud Function.
+    // the {path=**} part lets the app search positions across every call at once
+    match /{path=**}/positions/{uid} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     // anything not matched above is blocked by default
   }
 }

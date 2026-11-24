@@ -3,16 +3,18 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
-import { collection, doc, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "@/firebase";
-import { useAuthUser, usePlayers } from "@/hooks";
-import { timeLeft } from "@/format";
-import { Prediction, User } from "@/lib/types";
+import { useAuthUser, useMyPositions, usePlayer, usePlayers } from "@/hooks";
+import { Prediction } from "@/lib/types";
+import CallCard from "./CallCard";
 
 export default function Home() {
   const { authUser, loading, setupError } = useAuthUser();
+  const uid = authUser?.uid ?? null;
   const players = usePlayers(!!authUser);
-  const [player, setPlayer] = useState<User | null>(null);
+  const player = usePlayer(uid);
+  const myPositions = useMyPositions(uid);
   const [calls, setCalls] = useState<Prediction[]>([]);
   const [signInError, setSignInError] = useState("");
 
@@ -28,19 +30,6 @@ export default function Home() {
       else setSignInError("Couldn't sign in. Try again.");
     }
   }
-
-  // keep your glory and tokens in sync
-  useEffect(() => {
-    if (!authUser) {
-      setPlayer(null);
-      return;
-    }
-    return onSnapshot(
-      doc(db, "users", authUser.uid),
-      (snap) => setPlayer(snap.exists() ? (snap.data() as User) : null),
-      () => setPlayer(null)
-    );
-  }, [authUser]);
 
   // open calls, newest first
   useEffect(() => {
@@ -69,8 +58,12 @@ export default function Home() {
     );
   }
 
-  const nameOf = (uid: string) => players.find((p) => p.uid === uid)?.displayName ?? "Someone";
+  const nameOf = (id: string) => players.find((p) => p.uid === id)?.displayName ?? "Someone";
   const now = Date.now();
+
+  // calls you can still get in on, and calls you're already in
+  const needsSide = calls.filter((c) => !myPositions.has(c.id) && c.deadline > now);
+  const youreIn = calls.filter((c) => myPositions.has(c.id));
 
   return (
     <main>
@@ -95,18 +88,24 @@ export default function Home() {
 
       <Link href="/new" className="button">Make a call</Link>
 
-      <h2>Open calls</h2>
-      {calls.length === 0 && <p className="muted">No open calls yet. Make the first one.</p>}
+      <h2>Needs your side</h2>
+      {needsSide.length === 0 && <p className="muted">You&apos;re caught up. Make a call to get things going.</p>}
       <ul className="calls">
-        {calls.map((c) => (
-          <li key={c.id} className="call">
-            <p className="call-text">{c.text}</p>
-            <p className="call-meta">
-              About {c.subjectId ? nameOf(c.subjectId) : c.subjectLabel} · by {nameOf(c.creatorId)} · {timeLeft(c.deadline, now)}
-            </p>
-          </li>
+        {needsSide.map((c) => (
+          <CallCard key={c.id} call={c} nameOf={nameOf} now={now} />
         ))}
       </ul>
+
+      {youreIn.length > 0 && (
+        <>
+          <h2>You&apos;re in</h2>
+          <ul className="calls">
+            {youreIn.map((c) => (
+              <CallCard key={c.id} call={c} nameOf={nameOf} mine={myPositions.get(c.id)} now={now} />
+            ))}
+          </ul>
+        </>
+      )}
 
       <button className="secondary" onClick={() => signOut(auth)}>Sign out</button>
     </main>
