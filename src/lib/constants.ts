@@ -7,6 +7,7 @@ export const WIN_BASE = 10; // glory for a full stake win when you were alone ag
 export const LOSS_BASE = 5; // glory lost on a full stake loss, half of a win
 export const CROWD_MIN = 0.2; // even agreeing with everyone pays a little
 
+export const START_TOKENS = 50; // what a brand new player gets
 export const DAILY_TOKENS = 50;
 export const TOKEN_CAP = 200; // daily grant won't push you past this
 export const MAX_STAKE_FACTOR = 2; // staking over 100 doesn't keep scaling glory

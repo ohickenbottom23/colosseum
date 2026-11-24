@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // anyone signed in can see players (for the leaderboard).
+    // nobody writes them from the app, only Cloud Functions do
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // anything not matched above is blocked by default
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node10",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "lib",
+    // rootDir is the repo root so we can import the game rules from ../src/lib
+    "rootDir": ".."
+  },
+  "include": ["src", "../src/lib"],
+  "exclude": ["../src/lib/**/*.test.ts"]
+}

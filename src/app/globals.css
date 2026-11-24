@@ -1,0 +1,84 @@
+:root {
+  --garnet: #73000a;
+  --gold: #c9a227;
+  --cream: #f6efe0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--garnet);
+  color: var(--cream);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 48px 16px;
+}
+
+h1 {
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-weight: 400;
+  font-size: 56px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 12px;
+}
+
+button {
+  width: 100%;
+  padding: 14px 20px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  background: var(--gold);
+  color: var(--garnet);
+  cursor: pointer;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--gold);
+  border: 2px solid var(--gold);
+}
+
+.stats {
+  display: flex;
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.stat-number {
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-size: 40px;
+  color: var(--gold);
+}
+
+.stat-label {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.8;
+}
+
+.error {
+  color: #ffb4b4;
+}

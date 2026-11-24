@@ -1,22 +1,48 @@
 # Colosseum
 
-Game logic for Colosseum. No Firebase or UI yet, just the rules.
+Social prediction game for college students. Next.js app on Firebase, running on the local emulators for now.
 
 ```
-src/lib/
-  types.ts       data model (what goes in Firestore)
-  constants.ts   all the numbers to tune
-  glory.ts       glory math and leaderboard score
-  tokens.ts      daily grant and pot split
-  resolve.ts     create/join checks, void rules, settling, dispute votes
-  game.test.ts   tests
+functions/         Cloud Functions (ensureUser makes your player record on first sign-in)
+firestore.rules    who can read and write what
+tests/             rules tests, run against the emulator
+src/
+  app/           Next.js pages
+  firebase.ts    firebase setup, connects to the emulators locally
+  lib/           game rules, no Firebase in here
+    types.ts       data model (what goes in Firestore)
+    constants.ts   all the numbers to tune
+    glory.ts       glory math and leaderboard score
+    tokens.ts      daily grant and pot split
+    resolve.ts     create/join checks, void rules, settling, dispute votes
+    game.test.ts   tests
 ```
 
-Run tests:
+## Run it locally
+
+No real Firebase project needed. It uses the emulators with a fake `demo-colosseum` project (needs Java for the emulators).
+
+```
+npm install
+cp .env.example .env.local
+npm --prefix functions install
+npm run emulators   # terminal 1, emulator UI at localhost:4000
+npm run dev         # terminal 2, app at localhost:3000
+```
+
+Sign in with Google shows the emulator's fake account picker, so you can make as many test users as you want.
+
+## Tests
 
 ```
 npm install
 npm test
+```
+
+Rules tests (starts its own Firestore emulator, so stop `npm run emulators` first):
+
+```
+npm run test:rules
 ```
 
 ## Rules in here
