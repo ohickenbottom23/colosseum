@@ -71,9 +71,34 @@ describe("users", () => {
   });
 });
 
+describe("predictions", () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "predictions/p1"), { text: "Jake skips class", creatorId: "maya", status: "open" });
+    });
+  });
+
+  it("signed in players can see calls", async () => {
+    await assertSucceeds(getDoc(doc(as("jake"), "predictions/p1")));
+  });
+
+  it("signed out people can't see calls", async () => {
+    await assertFails(getDoc(doc(signedOut(), "predictions/p1")));
+  });
+
+  it("you can't make a call directly, it has to go through the server", async () => {
+    await assertFails(setDoc(doc(as("maya"), "predictions/p2"), { text: "hi", creatorId: "maya", status: "open" }));
+  });
+
+  it("not even the creator can edit or delete a call directly", async () => {
+    await assertFails(updateDoc(doc(as("maya"), "predictions/p1"), { status: "resolved", outcome: "yes" }));
+    await assertFails(deleteDoc(doc(as("maya"), "predictions/p1")));
+  });
+});
+
 describe("everything else", () => {
   it("is locked until we build it", async () => {
-    await assertFails(setDoc(doc(as("maya"), "predictions/p1"), { text: "hi" }));
-    await assertFails(getDoc(doc(as("maya"), "predictions/p1")));
+    await assertFails(setDoc(doc(as("maya"), "groups/g1"), { name: "hi" }));
+    await assertFails(getDoc(doc(as("maya"), "groups/g1")));
   });
 });

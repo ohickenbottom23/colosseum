@@ -10,6 +10,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // no groups yet, so anyone signed in can see every call.
+    // calls are made and changed only by Cloud Functions
+    match /predictions/{predictionId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     // anything not matched above is blocked by default
   }
 }

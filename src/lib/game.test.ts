@@ -18,6 +18,7 @@ import {
   refundAll,
   tallyVotes,
 } from "./resolve";
+import { deadlineFromPreset, validateNewCall, NewCall } from "./calls";
 
 // little helpers so tests are shorter
 const pos = (uid: string, side: "yes" | "no", stake: number): Position => ({
@@ -210,5 +211,65 @@ describe("disputes", () => {
     expect(tallyVotes(["yes", "yes", "no"])).toBe("yes");
     expect(tallyVotes(["no", "no", "yes"])).toBe("no");
     expect(tallyVotes(["yes", "no"])).toBe("void");
+  });
+});
+
+describe("deadlines", () => {
+  // Wednesday Nov 25 2026, 3pm local time
+  const wed = new Date(2026, 10, 25, 15, 0);
+
+  it("tonight is 11:59pm today", () => {
+    expect(deadlineFromPreset("tonight", wed)).toBe(new Date(2026, 10, 25, 23, 59).getTime());
+  });
+
+  it("this week ends Sunday night", () => {
+    expect(deadlineFromPreset("week", wed)).toBe(new Date(2026, 10, 29, 23, 59).getTime());
+  });
+
+  it("on a Sunday, this week is tonight", () => {
+    const sun = new Date(2026, 10, 29, 10, 0);
+    expect(deadlineFromPreset("week", sun)).toBe(new Date(2026, 10, 29, 23, 59).getTime());
+  });
+
+  it("this month ends on the last day, even across the year", () => {
+    expect(deadlineFromPreset("month", wed)).toBe(new Date(2026, 10, 30, 23, 59).getTime());
+    const dec = new Date(2026, 11, 3, 9, 0);
+    expect(deadlineFromPreset("month", dec)).toBe(new Date(2026, 11, 31, 23, 59).getTime());
+  });
+
+  it("custom is 11:59pm on the picked date", () => {
+    expect(deadlineFromPreset("custom", wed, "2026-12-05")).toBe(new Date(2026, 11, 5, 23, 59).getTime());
+  });
+});
+
+describe("making a call", () => {
+  const now = 1000 * DAY;
+  const good: NewCall = { text: "Owen hits the gym 4 times", subjectId: "owen", subjectLabel: null, deadline: now + DAY };
+
+  it("a normal call is fine", () => {
+    expect(validateNewCall(good, "maya", now)).toBeNull();
+    expect(validateNewCall({ ...good, subjectId: null, subjectLabel: "the weather" }, "maya", now)).toBeNull();
+  });
+
+  it("needs some text, but not an essay", () => {
+    expect(validateNewCall({ ...good, text: "   " }, "maya", now)).toBe("Write your call first");
+    expect(validateNewCall({ ...good, text: "x".repeat(201) }, "maya", now)).toBe("Keep it under 200 characters");
+  });
+
+  it("has to be about exactly one thing", () => {
+    expect(validateNewCall({ ...good, subjectId: null }, "maya", now)).toBe("Pick who or what it's about");
+    expect(validateNewCall({ ...good, subjectLabel: "the weather" }, "maya", now)).toBe("Pick who or what it's about");
+    expect(validateNewCall({ ...good, subjectId: null, subjectLabel: "  " }, "maya", now)).toBe("Pick who or what it's about");
+  });
+
+  it("you can't make a call about yourself", () => {
+    expect(validateNewCall(good, "owen", now)).toBe("You can't make a call about yourself");
+  });
+
+  it("deadline has to be a little in the future, but not too far", () => {
+    expect(validateNewCall({ ...good, deadline: now - DAY }, "maya", now)).toBe("The deadline has to be at least 10 minutes away");
+    expect(validateNewCall({ ...good, deadline: now + 5 * 60 * 1000 }, "maya", now)).toBe("The deadline has to be at least 10 minutes away");
+    expect(validateNewCall({ ...good, deadline: now + 400 * DAY }, "maya", now)).toBe("The deadline can't be more than a year away");
+    expect(validateNewCall({ ...good, deadline: NaN }, "maya", now)).toBe("Pick a deadline");
   });
 });

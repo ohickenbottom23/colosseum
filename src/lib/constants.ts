@@ -14,6 +14,12 @@ export const MAX_STAKE_FACTOR = 2; // staking over 100 doesn't keep scaling glor
 
 export const RESOLVE_WINDOW_MS = 48 * 60 * 60 * 1000;
 
+// making a call
+export const MAX_CALL_TEXT = 200;
+export const MAX_LABEL = 40; // like "the weather"
+export const MIN_DEADLINE_MS = 10 * 60 * 1000; // at least 10 minutes out
+export const MAX_DEADLINE_MS = 365 * 24 * 60 * 60 * 1000; // at most a year out
+
 // leaderboard smoothing, pulls small samples toward 50%
 export const SMOOTH_WINS = 5;
 export const SMOOTH_CALLS = 10;
