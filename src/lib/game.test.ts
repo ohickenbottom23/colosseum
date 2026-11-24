@@ -7,6 +7,7 @@ import {
   gloryForLoss,
   applyGlory,
   leaderboardScore,
+  rankPlayers,
 } from "./glory";
 import { dailyGrant, splitPot, isValidTimeZone, localDate, pickTimeZone } from "./tokens";
 import {
@@ -372,5 +373,36 @@ describe("timezones for the daily grant", () => {
     const changedAt = 10 * DAY;
     expect(pickTimeZone("America/Denver", "Pacific/Auckland", changedAt, changedAt + DAY)).toEqual({ timeZone: "America/Denver", changed: false });
     expect(pickTimeZone("America/Denver", "Pacific/Auckland", changedAt, changedAt + WEEK)).toEqual({ timeZone: "Pacific/Auckland", changed: true });
+  });
+});
+
+describe("leaderboard order", () => {
+  it("a proven player ranks above a lucky new one", () => {
+    const lucky = makeUser({ uid: "lucky", glory: 112, wins: 1, calls: 1 }); // 112 * 6/11 = 61
+    const proven = makeUser({ uid: "proven", glory: 140, wins: 30, calls: 40 }); // 140 * 35/50 = 98
+    const ranked = rankPlayers([lucky, proven]);
+    expect(ranked.map((r) => r.user.uid)).toEqual(["proven", "lucky"]);
+    expect(ranked.map((r) => r.score)).toEqual([98, 61]);
+  });
+
+  it("ties on score go to more glory, then more calls", () => {
+    // all three score 50
+    const fresh = makeUser({ uid: "fresh", glory: 100, wins: 0, calls: 0 });
+    const played = makeUser({ uid: "played", glory: 100, wins: 5, calls: 10 });
+    const richer = makeUser({ uid: "richer", glory: 125, wins: 3, calls: 10 }); // 125 * 8/20 = 50
+    const ranked = rankPlayers([fresh, played, richer]);
+    expect(ranked.map((r) => r.user.uid)).toEqual(["richer", "played", "fresh"]);
+  });
+
+  it("tied scores share a rank", () => {
+    const a = makeUser({ uid: "a", glory: 140, wins: 30, calls: 40 }); // 98
+    const b = makeUser({ uid: "b", glory: 100, wins: 0, calls: 0 }); // 50
+    const c = makeUser({ uid: "c", glory: 100, wins: 5, calls: 10 }); // 50
+    const d = makeUser({ uid: "d", glory: 100, wins: 0, calls: 10 }); // 25
+    expect(rankPlayers([d, c, b, a]).map((r) => r.rank)).toEqual([1, 2, 2, 4]);
+  });
+
+  it("an empty leaderboard is fine", () => {
+    expect(rankPlayers([])).toEqual([]);
   });
 });

@@ -46,3 +46,21 @@ export function leaderboardScore(user: Pick<User, "glory" | "wins" | "calls">): 
   const accuracy = (user.wins + SMOOTH_WINS) / (user.calls + SMOOTH_CALLS);
   return Math.round(user.glory * accuracy);
 }
+
+export interface Ranked {
+  user: User;
+  score: number;
+  rank: number; // tied players share a rank, like 1, 2, 2, 4
+}
+
+// everyone in leaderboard order. ties go to more glory, then more calls played
+export function rankPlayers(users: User[]): Ranked[] {
+  const scored = users.map((user) => ({ user, score: leaderboardScore(user) }));
+  scored.sort((a, b) => b.score - a.score || b.user.glory - a.user.glory || b.user.calls - a.user.calls);
+
+  return scored.map((row, i) => {
+    // same score as someone above you means you share their rank
+    const first = scored.findIndex((other) => other.score === row.score);
+    return { ...row, rank: first + 1 };
+  });
+}

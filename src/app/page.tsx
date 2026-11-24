@@ -9,6 +9,7 @@ import { useAuthUser, useMyPositions, usePlayer, usePlayers } from "@/hooks";
 import { formatGlory, resultLine } from "@/format";
 import { Prediction } from "@/lib/types";
 import CallCard from "./CallCard";
+import TabBar from "./TabBar";
 
 export default function Home() {
   const { authUser, loading, setupError, granted } = useAuthUser();
@@ -119,7 +120,7 @@ export default function Home() {
   }
 
   return (
-    <main>
+    <main className="with-tabs">
       <h1>Colosseum</h1>
 
       {setupError && <p className="error">{setupError}</p>}
@@ -190,6 +191,8 @@ export default function Home() {
       )}
 
       <button className="secondary" onClick={() => signOut(auth)}>Sign out</button>
+
+      <TabBar />
     </main>
   );
 }
