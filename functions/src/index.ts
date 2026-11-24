@@ -14,12 +14,14 @@ import {
   sweepDecision,
 } from "../../src/lib/resolve";
 import { NewCall, validateNewCall } from "../../src/lib/calls";
+import { dailyGrant, localDate, pickTimeZone } from "../../src/lib/tokens";
 
 initializeApp();
 const db = getFirestore();
 
-// the app calls this right after sign-in. makes the player record the first time,
-// does nothing after that. safe to call as many times as you want
+// the app calls this every time it opens. makes the player record the first time,
+// and hands out the daily tokens once per day in the player's own timezone.
+// safe to call as many times as you want
 export const ensureUser = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Sign in first");
@@ -28,30 +30,58 @@ export const ensureUser = onCall(async (request) => {
   const uid = request.auth.uid;
   const token = request.auth.token;
   const ref = db.doc(`users/${uid}`);
+  const fromPhone = request.data?.timeZone; // checked in pickTimeZone, junk gets ignored
 
-  // transaction so two calls at once can't both create it
-  await db.runTransaction(async (tx) => {
+  // transaction so two calls at once can't both create it or both get the grant
+  const granted = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (snap.exists) return;
+    const now = Date.now();
 
-    const user: User = {
-      uid,
-      displayName: token.name ?? token.email ?? "Player",
-      photoURL: token.picture ?? null,
-      glory: START_GLORY,
-      tokens: START_TOKENS,
-      wins: 0,
-      calls: 0,
-      missedResolves: 0,
-      friendIds: [],
-      // they already got today's tokens. UTC date for now, decide on timezones with the daily grant
-      lastGrantDate: new Date().toISOString().slice(0, 10),
-      createdAt: Date.now(),
-    };
-    tx.set(ref, user);
+    if (!snap.exists) {
+      const { timeZone } = pickTimeZone(null, fromPhone, 0, now);
+      const user: User = {
+        uid,
+        displayName: token.name ?? token.email ?? "Player",
+        photoURL: token.picture ?? null,
+        glory: START_GLORY,
+        tokens: START_TOKENS,
+        wins: 0,
+        calls: 0,
+        missedResolves: 0,
+        friendIds: [],
+        lastGrantDate: localDate(now, timeZone), // starting tokens count as today's
+        timeZone,
+        timeZoneChangedAt: now,
+        createdAt: now,
+      };
+      tx.set(ref, user);
+      return 0;
+    }
+
+    const user = snap.data() as User;
+    const tz = pickTimeZone(user.timeZone, fromPhone, user.timeZoneChangedAt ?? 0, now);
+    const today = localDate(now, tz.timeZone);
+
+    const updates: Partial<User> = {};
+    if (tz.changed) {
+      updates.timeZone = tz.timeZone;
+      updates.timeZoneChangedAt = now;
+    }
+
+    // save today even if they're at the cap, so they can't spend down and claim again later today
+    let granted = 0;
+    if (user.lastGrantDate !== today) {
+      const tokens = dailyGrant(user.tokens, user.lastGrantDate, today);
+      granted = tokens - user.tokens;
+      updates.tokens = tokens;
+      updates.lastGrantDate = today;
+    }
+
+    if (Object.keys(updates).length > 0) tx.update(ref, updates);
+    return granted;
   });
 
-  return { ok: true };
+  return { granted };
 });
 
 // make a new call. the app works out the deadline in local time, we just check it's sensible

@@ -8,7 +8,7 @@ import {
   applyGlory,
   leaderboardScore,
 } from "./glory";
-import { dailyGrant, splitPot } from "./tokens";
+import { dailyGrant, splitPot, isValidTimeZone, localDate, pickTimeZone } from "./tokens";
 import {
   canCreate,
   canTakeSide,
@@ -61,6 +61,8 @@ const makeUser = (overrides: Partial<User> = {}): User => ({
   missedResolves: 0,
   friendIds: [],
   lastGrantDate: "2026-11-19",
+  timeZone: "America/Chicago",
+  timeZoneChangedAt: 0,
   createdAt: 0,
   ...overrides,
 });
@@ -331,5 +333,44 @@ describe("voiding on its own", () => {
 
   it("leaves settled calls alone", () => {
     expect(sweepDecision({ ...p, status: "resolved" }, joined, 10 * DAY + 49 * HOUR)).toBeNull();
+  });
+});
+
+describe("timezones for the daily grant", () => {
+  const WEEK = 7 * DAY;
+
+  it("the same moment can be a different day in different places", () => {
+    const t = Date.UTC(2026, 10, 24, 3, 0); // 3am UTC on Nov 24 is 9pm Nov 23 in Chicago
+    expect(localDate(t, "UTC")).toBe("2026-11-24");
+    expect(localDate(t, "America/Chicago")).toBe("2026-11-23");
+  });
+
+  it("handles daylight saving", () => {
+    // 5:30am UTC on July 1 is 12:30am in Chicago in summer (it'd still be June 30 on winter time)
+    expect(localDate(Date.UTC(2026, 6, 1, 5, 30), "America/Chicago")).toBe("2026-07-01");
+  });
+
+  it("knows real timezones from fake ones", () => {
+    expect(isValidTimeZone("America/Chicago")).toBe(true);
+    expect(isValidTimeZone("Mars/Base")).toBe(false);
+    expect(isValidTimeZone("")).toBe(false);
+    expect(isValidTimeZone(42)).toBe(false);
+  });
+
+  it("new players get their phone's timezone, or Central if it's missing or fake", () => {
+    expect(pickTimeZone(null, "America/New_York", 0, 0)).toEqual({ timeZone: "America/New_York", changed: true });
+    expect(pickTimeZone(null, undefined, 0, 0)).toEqual({ timeZone: "America/Chicago", changed: true });
+    expect(pickTimeZone(null, "Mars/Base", 0, 0)).toEqual({ timeZone: "America/Chicago", changed: true });
+  });
+
+  it("keeps the saved one if the phone matches or sends junk", () => {
+    expect(pickTimeZone("America/Denver", "America/Denver", 0, WEEK * 2)).toEqual({ timeZone: "America/Denver", changed: false });
+    expect(pickTimeZone("America/Denver", "Mars/Base", 0, WEEK * 2)).toEqual({ timeZone: "America/Denver", changed: false });
+  });
+
+  it("only lets you switch once a week", () => {
+    const changedAt = 10 * DAY;
+    expect(pickTimeZone("America/Denver", "Pacific/Auckland", changedAt, changedAt + DAY)).toEqual({ timeZone: "America/Denver", changed: false });
+    expect(pickTimeZone("America/Denver", "Pacific/Auckland", changedAt, changedAt + WEEK)).toEqual({ timeZone: "Pacific/Auckland", changed: true });
   });
 });

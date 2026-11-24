@@ -9,7 +9,7 @@ import { db, functions } from "@/firebase";
 import { useAuthUser, usePlayer, usePlayers } from "@/hooks";
 import { resultLine, timeLeft, voidReasonText } from "@/format";
 import { canResolve, canTakeSide } from "@/lib/resolve";
-import { RESOLVE_WINDOW_MS } from "@/lib/constants";
+import { DAILY_TOKENS, RESOLVE_WINDOW_MS } from "@/lib/constants";
 import { Position, Prediction, Side } from "@/lib/types";
 
 export default function CallPage() {
@@ -202,7 +202,7 @@ export default function CallPage() {
       ) : !player ? (
         <p>Loading...</p>
       ) : player.tokens === 0 ? (
-        <p className="muted">You&apos;re out of tokens for now.</p>
+        <p className="muted">You&apos;re out of tokens. You get {DAILY_TOKENS} more tomorrow.</p>
       ) : (
         <div className="form">
           <div className="field">

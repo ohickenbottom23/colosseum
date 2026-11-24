@@ -29,7 +29,9 @@ export interface User {
   calls: number; // resolved calls they took a side on
   missedResolves: number; // reliability hit for letting calls void
   friendIds: string[];
-  lastGrantDate: string; // "2026-11-20", for the daily token grant
+  lastGrantDate: string; // "2026-11-20" in their timezone, for the daily token grant
+  timeZone: string; // like "America/Chicago", decides when their day starts
+  timeZoneChangedAt: number; // so they can only switch once a week
   createdAt: number;
 }
 

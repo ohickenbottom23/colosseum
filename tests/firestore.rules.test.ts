@@ -57,6 +57,11 @@ describe("users", () => {
     await assertFails(updateDoc(doc(as("maya"), "users/maya"), { wins: 50, calls: 50 }));
   });
 
+  it("you can't change your own timezone or grant date to get extra daily tokens", async () => {
+    await assertFails(updateDoc(doc(as("maya"), "users/maya"), { timeZone: "Pacific/Auckland" }));
+    await assertFails(updateDoc(doc(as("maya"), "users/maya"), { lastGrantDate: "2000-01-01" }));
+  });
+
   it("you can't make your own player record", async () => {
     await assertFails(setDoc(doc(as("jake"), "users/jake"), { uid: "jake", glory: 9999, tokens: 9999 }));
   });

@@ -311,3 +311,14 @@ button.chip.big {
 .settle {
   margin-top: 8px;
 }
+
+/* "+50 tokens for today" */
+.banner {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--gold);
+  color: var(--garnet);
+  font-weight: 700;
+  text-align: center;
+}

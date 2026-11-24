@@ -10,6 +10,11 @@ export const CROWD_MIN = 0.2; // even agreeing with everyone pays a little
 export const START_TOKENS = 50; // what a brand new player gets
 export const DAILY_TOKENS = 50;
 export const TOKEN_CAP = 200; // daily grant won't push you past this
+
+// "a day" is in the player's own timezone. Central time if we can't tell
+export const DEFAULT_TIME_ZONE = "America/Chicago";
+// you can only switch timezones once a week, so switching can't farm extra daily grants
+export const TIME_ZONE_CHANGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 export const MAX_STAKE_FACTOR = 2; // staking over 100 doesn't keep scaling glory
 
 export const RESOLVE_WINDOW_MS = 48 * 60 * 60 * 1000;

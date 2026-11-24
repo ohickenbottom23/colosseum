@@ -11,7 +11,7 @@ import { Prediction } from "@/lib/types";
 import CallCard from "./CallCard";
 
 export default function Home() {
-  const { authUser, loading, setupError } = useAuthUser();
+  const { authUser, loading, setupError, granted } = useAuthUser();
   const uid = authUser?.uid ?? null;
   const players = usePlayers(!!authUser);
   const player = usePlayer(uid);
@@ -123,6 +123,7 @@ export default function Home() {
       <h1>Colosseum</h1>
 
       {setupError && <p className="error">{setupError}</p>}
+      {granted > 0 && <p className="banner">+{granted} tokens for today</p>}
 
       {player ? (
         <div className="stats">

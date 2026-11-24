@@ -7,23 +7,28 @@ import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "@/firebase";
 import { Position, User } from "@/lib/types";
 
-// who's signed in. also makes sure their player record exists the first time
+// who's signed in. also makes sure their player record exists, and picks up today's tokens
 export function useAuthUser() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [setupError, setSetupError] = useState("");
+  const [granted, setGranted] = useState(0); // tokens they just got for today
 
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
       setAuthUser(u);
       setLoading(false);
       if (u) {
-        httpsCallable(functions, "ensureUser")().catch(() => setSetupError("Couldn't set up your account. Try again."));
+        // the phone's timezone decides when their day starts. the server double checks it
+        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        httpsCallable<{ timeZone: string }, { granted: number }>(functions, "ensureUser")({ timeZone })
+          .then((res) => setGranted(res.data.granted))
+          .catch(() => setSetupError("Couldn't set up your account. Try again."));
       }
     });
   }, []);
 
-  return { authUser, loading, setupError };
+  return { authUser, loading, setupError, granted };
 }
 
 // every player. fine while it's just friends, will need groups later
