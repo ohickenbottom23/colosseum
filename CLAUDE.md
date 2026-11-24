@@ -71,3 +71,14 @@ Not yet: groups and invite links, activity feed, notifications, streaks, seasons
 - How people find each other in V1 before groups exist. Maybe everyone signed in sees everyone, since only friends will have the link.
 - Exact Glory numbers, to tune after playtesting
 - What brings people back every day, to figure out after V1 works
+
+## Brand
+
+- Name is Colosseum (two s's, "eu")
+- Garnet #73000A and gold #C9A227. Gold on garnet for the main look.
+- Anton for the wordmark and big headings, Inter for everything else
+- Mobile first. Almost everyone will use this on a phone.
+
+## More background
+
+Read `docs/product.md` when working on anything user facing, or when a decision isn't covered here.
