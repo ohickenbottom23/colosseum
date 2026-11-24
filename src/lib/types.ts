@@ -63,6 +63,7 @@ export interface Position {
   side: Side;
   stake: number;
   createdAt: number;
+  result?: Payout; // filled in when the call is settled or voided
 }
 
 // what happens to one player when a call settles

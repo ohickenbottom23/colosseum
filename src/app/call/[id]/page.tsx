@@ -7,8 +7,9 @@ import { collection, doc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/firebase";
 import { useAuthUser, usePlayer, usePlayers } from "@/hooks";
-import { timeLeft } from "@/format";
-import { canTakeSide } from "@/lib/resolve";
+import { resultLine, timeLeft, voidReasonText } from "@/format";
+import { canResolve, canTakeSide } from "@/lib/resolve";
+import { RESOLVE_WINDOW_MS } from "@/lib/constants";
 import { Position, Prediction, Side } from "@/lib/types";
 
 export default function CallPage() {
@@ -27,6 +28,11 @@ export default function CallPage() {
   const [stake, setStake] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // settling, for the creator after the deadline
+  const [outcome, setOutcome] = useState<Side | null>(null);
+  const [settleError, setSettleError] = useState("");
+  const [settling, setSettling] = useState(false);
 
   // this page is only for signed in players
   useEffect(() => {
@@ -73,6 +79,10 @@ export default function CallPage() {
   const yes = positions.filter((p) => p.side === "yes");
   const no = positions.filter((p) => p.side === "no");
   const canStillPick = call.status === "open" && now < call.deadline;
+  const isCreator = call.creatorId === authUser.uid;
+  const waitingOnResult = call.status === "open" && now >= call.deadline;
+  // null means the creator can settle it right now
+  const settleProblem = canResolve(call, authUser.uid, now);
 
   async function backIt() {
     if (!player || !call || !side) return;
@@ -95,14 +105,42 @@ export default function CallPage() {
     setSaving(false);
   }
 
+  async function settleIt() {
+    if (!call || !outcome) return;
+    setSettleError("");
+    setSettling(true);
+    try {
+      await httpsCallable(functions, "resolveCall")({ predictionId: call.id, outcome });
+    } catch (err) {
+      setSettleError(err instanceof Error ? err.message : "Something went wrong");
+    }
+    setSettling(false);
+    setOutcome(null);
+  }
+
   return (
     <main>
       <Link href="/" className="back">← Back</Link>
 
       <p className="call-big">{call.text}</p>
       <p className="call-meta">
-        About {about} · by {nameOf(call.creatorId)} · {timeLeft(call.deadline, now)}
+        About {about} · by {nameOf(call.creatorId)}
+        {call.status === "open" && <> · {timeLeft(call.deadline, now)}</>}
       </p>
+
+      {/* how it ended */}
+      {call.status === "resolved" && (
+        <div className="result">
+          <h3>Result: {call.outcome?.toUpperCase()}</h3>
+          {mine?.result && <p>{resultLine(mine.result, false)}</p>}
+        </div>
+      )}
+      {call.status === "void" && (
+        <div className="result">
+          <h3>Didn&apos;t count</h3>
+          <p>{voidReasonText(call.voidReason, nameOf(call.creatorId))} Everyone got their tokens back.</p>
+        </div>
+      )}
 
       {/* who's on each side. stakes stay private */}
       <div className="sides">
@@ -116,12 +154,51 @@ export default function CallPage() {
         </div>
       </div>
 
+      {/* the creator settles it after the deadline */}
+      {waitingOnResult && isCreator && !settleProblem && (
+        <div className="form settle">
+          <div className="field">
+            <span>What happened? {timeLeft(call.deadline + RESOLVE_WINDOW_MS, now)} to settle</span>
+            {!outcome ? (
+              <div className="chips">
+                <button type="button" className="chip big" onClick={() => setOutcome("yes")}>Yes</button>
+                <button type="button" className="chip big" onClick={() => setOutcome("no")}>No</button>
+              </div>
+            ) : (
+              <>
+                <p>
+                  Settle this as <strong>{outcome.toUpperCase()}</strong>? Glory and tokens update for everyone right
+                  away, and you can&apos;t undo it.
+                </p>
+                <button onClick={settleIt} disabled={settling}>
+                  {settling ? "Settling..." : `Settle as ${outcome.toUpperCase()}`}
+                </button>
+                <button className="secondary" onClick={() => setOutcome(null)} disabled={settling}>
+                  Go back
+                </button>
+              </>
+            )}
+          </div>
+          {settleError && <p className="error">{settleError}</p>}
+        </div>
+      )}
+
+      {waitingOnResult && isCreator && settleProblem && (
+        <p className="muted">The time to settle this is up. It won&apos;t count, and everyone gets their tokens back.</p>
+      )}
+
+      {waitingOnResult && !isCreator && (
+        <p className="muted">Waiting on {nameOf(call.creatorId)} to say what happened.</p>
+      )}
+
       {mine ? (
-        <p className="picked">
-          You picked <strong>{mine.side.toUpperCase()}</strong> with {mine.stake} tokens.
-        </p>
+        call.status === "open" && (
+          <p className="picked">
+            You picked <strong>{mine.side.toUpperCase()}</strong> with {mine.stake} tokens.
+          </p>
+        )
       ) : !canStillPick ? (
-        <p className="muted">This call isn&apos;t taking sides anymore.</p>
+        call.status === "open" && !waitingOnResult && <p className="muted">This call isn&apos;t taking sides anymore.</p>
       ) : !player ? (
         <p>Loading...</p>
       ) : player.tokens === 0 ? (

@@ -17,6 +17,9 @@ import {
   settle,
   refundAll,
   tallyVotes,
+  canResolve,
+  applyPayout,
+  sweepDecision,
 } from "./resolve";
 import { deadlineFromPreset, validateNewCall, NewCall } from "./calls";
 
@@ -272,5 +275,61 @@ describe("making a call", () => {
     expect(validateNewCall({ ...good, deadline: now + 5 * 60 * 1000 }, "maya", now)).toBe("The deadline has to be at least 10 minutes away");
     expect(validateNewCall({ ...good, deadline: now + 400 * DAY }, "maya", now)).toBe("The deadline can't be more than a year away");
     expect(validateNewCall({ ...good, deadline: NaN }, "maya", now)).toBe("Pick a deadline");
+  });
+});
+
+describe("settling a call", () => {
+  const HOUR = 60 * 60 * 1000;
+  const p = makePrediction(); // maya made it, deadline at 10 days
+
+  it("only the creator can settle, and only after the deadline", () => {
+    expect(canResolve(p, "maya", 10 * DAY + HOUR)).toBeNull();
+    expect(canResolve(p, "jake", 10 * DAY + HOUR)).toBe("Only the person who made the call can settle it");
+    expect(canResolve(p, "maya", 9 * DAY)).toBe("You can settle this after the deadline");
+  });
+
+  it("can't settle twice or after the 48 hours", () => {
+    expect(canResolve({ ...p, status: "resolved" }, "maya", 10 * DAY + HOUR)).toBe("This call is already settled");
+    expect(canResolve({ ...p, status: "void" }, "maya", 10 * DAY + HOUR)).toBe("This call is already settled");
+    expect(canResolve(p, "maya", 10 * DAY + 49 * HOUR)).toBe("Too late, the 48 hours to settle this are up");
+  });
+
+  it("a win adds tokens, glory, a win, and a played call", () => {
+    const after = applyPayout({ tokens: 10, glory: 100, wins: 2, calls: 5 }, { uid: "a", tokenChange: 40, gloryChange: 12, won: true });
+    expect(after).toEqual({ tokens: 50, glory: 112, wins: 3, calls: 6 });
+  });
+
+  it("a loss counts as a played call and glory stops at the floor", () => {
+    const after = applyPayout({ tokens: 10, glory: 102, wins: 2, calls: 5 }, { uid: "a", tokenChange: 0, gloryChange: -5, won: false });
+    expect(after).toEqual({ tokens: 10, glory: 100, wins: 2, calls: 6 });
+  });
+
+  it("a refund gives tokens back but doesn't count as a played call", () => {
+    const after = applyPayout({ tokens: 10, glory: 100, wins: 2, calls: 5 }, { uid: "a", tokenChange: 25, gloryChange: 0, won: false }, false);
+    expect(after).toEqual({ tokens: 35, glory: 100, wins: 2, calls: 5 });
+  });
+});
+
+describe("voiding on its own", () => {
+  const HOUR = 60 * 60 * 1000;
+  const p = makePrediction(); // maya made it, deadline at 10 days
+  const joined = [pos("maya", "yes", 10), pos("jake", "no", 10)];
+
+  it("leaves calls alone before the deadline", () => {
+    expect(sweepDecision(p, [], 9 * DAY)).toBeNull();
+  });
+
+  it("voids right at the deadline if nobody but the creator joined", () => {
+    expect(sweepDecision(p, [pos("maya", "yes", 10)], 10 * DAY + HOUR)).toBe("no_takers");
+    expect(sweepDecision(p, [], 10 * DAY + HOUR)).toBe("no_takers");
+  });
+
+  it("gives the creator 48 hours, then voids", () => {
+    expect(sweepDecision(p, joined, 10 * DAY + 47 * HOUR)).toBeNull();
+    expect(sweepDecision(p, joined, 10 * DAY + 49 * HOUR)).toBe("not_resolved");
+  });
+
+  it("leaves settled calls alone", () => {
+    expect(sweepDecision({ ...p, status: "resolved" }, joined, 10 * DAY + 49 * HOUR)).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
-import { Payout, Position, Prediction, Side, User } from "./types";
+import { Payout, Position, Prediction, Side, User, VoidReason } from "./types";
 import { RESOLVE_WINDOW_MS } from "./constants";
-import { contrarianScore, gloryForWin, gloryForLoss } from "./glory";
+import { contrarianScore, gloryForWin, gloryForLoss, applyGlory } from "./glory";
 import { splitPot } from "./tokens";
 
 // ---------- checks for creating and joining ----------
@@ -37,7 +37,37 @@ export function resolveWindowExpired(prediction: Prediction, now: number): boole
   return now > prediction.deadline + RESOLVE_WINDOW_MS;
 }
 
+// what should happen to an open call nobody has settled. null means leave it alone
+export function sweepDecision(prediction: Prediction, positions: Position[], now: number): VoidReason | null {
+  if (prediction.status !== "open") return null;
+  if (now < prediction.deadline) return null;
+  // nothing to settle if nobody else joined, so void it right at the deadline
+  if (hasNoTakers(prediction, positions)) return "no_takers";
+  if (resolveWindowExpired(prediction, now)) return "not_resolved";
+  return null;
+}
+
 // ---------- settling ----------
+
+export function canResolve(prediction: Prediction, uid: string, now: number): string | null {
+  if (uid !== prediction.creatorId) return "Only the person who made the call can settle it";
+  if (prediction.status !== "open") return "This call is already settled";
+  if (now < prediction.deadline) return "You can settle this after the deadline";
+  if (resolveWindowExpired(prediction, now)) return "Too late, the 48 hours to settle this are up";
+  return null;
+}
+
+type Stats = Pick<User, "tokens" | "glory" | "wins" | "calls">;
+
+// a player's numbers after a call ends. refunds give tokens back but don't count as a played call
+export function applyPayout(user: Stats, payout: Payout, counted = true): Stats {
+  return {
+    tokens: user.tokens + payout.tokenChange,
+    glory: applyGlory(user.glory, payout.gloryChange),
+    wins: user.wins + (counted && payout.won ? 1 : 0),
+    calls: user.calls + (counted ? 1 : 0),
+  };
+}
 
 export function refundAll(positions: Position[]): Payout[] {
   return positions.map((p) => ({

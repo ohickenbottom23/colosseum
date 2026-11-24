@@ -284,3 +284,30 @@ button.chip.big {
   text-align: center;
   margin: 0;
 }
+
+/* how a call ended */
+.result {
+  margin: 20px 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--gold);
+  color: var(--garnet);
+}
+
+.result h3 {
+  margin: 0 0 6px;
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-weight: 400;
+  font-size: 26px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.result p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.settle {
+  margin-top: 8px;
+}
