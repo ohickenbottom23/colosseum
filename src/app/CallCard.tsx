@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { callText, timeLeft } from "@/format";
+import { callText, picksCloseText, timeLeft } from "@/format";
+import { picksCloseAt } from "@/lib/resolve";
 import { Prediction } from "@/lib/types";
 
 // one call in a list on the home screen
@@ -15,6 +16,9 @@ export default function CallCard({
   now: number;
 }) {
   const about = call.subjectId ? nameOf(call.subjectId) : call.subjectLabel;
+  // while picks are open that's the time that matters, after that it's the deadline
+  const closeAt = picksCloseAt(call);
+  const when = now < closeAt ? picksCloseText(closeAt, now) : timeLeft(call.deadline, now);
 
   return (
     <li>
@@ -22,7 +26,7 @@ export default function CallCard({
         <p className={call.text ? "call-text" : "call-text removed"}>{callText(call.text)}</p>
         <p className="call-meta">
           About {about} · by {nameOf(call.creatorId)}
-          {call.status === "open" && <> · {timeLeft(call.deadline, now)}</>}
+          {call.status === "open" && <> · {when}</>}
         </p>
         {note && <p className="call-mine">{note}</p>}
       </Link>

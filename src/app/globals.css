@@ -439,3 +439,63 @@ button.link-button {
   font-weight: 500;
   text-decoration: underline;
 }
+
+.closes {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+button.chip.share {
+  margin-top: 12px;
+}
+
+/* "if you're right" estimate */
+.estimate {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 2px dashed rgba(201, 162, 39, 0.6);
+}
+
+.estimate p {
+  margin: 0;
+}
+
+.small-left {
+  margin-top: 4px !important;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.explainer {
+  margin: -12px 0 20px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.row-glory {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.row-glory-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.7;
+}
+
+/* the tappable part of a card that also has buttons in it */
+a.plain-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* inside a card the take-down doesn't need the big gap */
+.call .takedown {
+  margin-top: 10px;
+  padding-top: 10px;
+}

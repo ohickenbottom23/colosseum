@@ -86,7 +86,9 @@ export const ensureUser = onCall(async (request) => {
   return { granted };
 });
 
-// make a new call. the app works out the deadline in local time, we just check it's sensible
+// make a new call. the creator backs a side while posting it, so the call, their pick,
+// and taking their tokens all happen in one transaction.
+// the app works out the deadline in local time, we just check it's sensible
 export const createCall = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Sign in first");
@@ -100,6 +102,8 @@ export const createCall = onCall(async (request) => {
     subjectLabel: typeof data.subjectLabel === "string" && data.subjectLabel.trim() ? data.subjectLabel : null,
     deadline: typeof data.deadline === "number" ? data.deadline : NaN,
   };
+  const side = data.side;
+  const stake = typeof data.stake === "number" ? data.stake : NaN;
 
   const uid = request.auth.uid;
   const now = Date.now();
@@ -108,31 +112,48 @@ export const createCall = onCall(async (request) => {
   if (problem) {
     throw new HttpsError("invalid-argument", problem);
   }
-
-  // if it's about a person, they have to actually be a player
-  if (call.subjectId) {
-    const subject = await db.doc(`users/${call.subjectId}`).get();
-    if (!subject.exists) {
-      throw new HttpsError("invalid-argument", "That player doesn't exist");
-    }
+  if (side !== "yes" && side !== "no") {
+    throw new HttpsError("invalid-argument", "Pick your side");
   }
 
   const ref = db.collection("predictions").doc();
-  const prediction: Prediction = {
-    id: ref.id,
-    text: call.text.trim(),
-    creatorId: uid,
-    subjectId: call.subjectId,
-    subjectLabel: call.subjectLabel?.trim() ?? null,
-    groupId: null, // no groups yet, everyone can see it
-    deadline: call.deadline,
-    status: "open",
-    outcome: null,
-    voidReason: null,
-    createdAt: now,
-    resolvedAt: null,
-  };
-  await ref.set(prediction);
+  const userRef = db.doc(`users/${uid}`);
+
+  await db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists) throw new HttpsError("failed-precondition", "Your account isn't set up yet");
+
+    // if it's about a person, they have to actually be a player
+    if (call.subjectId) {
+      const subject = await tx.get(db.doc(`users/${call.subjectId}`));
+      if (!subject.exists) throw new HttpsError("invalid-argument", "That player doesn't exist");
+    }
+
+    const prediction: Prediction = {
+      id: ref.id,
+      text: call.text.trim(),
+      creatorId: uid,
+      subjectId: call.subjectId,
+      subjectLabel: call.subjectLabel?.trim() ?? null,
+      groupId: null, // no groups yet, everyone can see it
+      deadline: call.deadline,
+      status: "open",
+      outcome: null,
+      voidReason: null,
+      createdAt: now,
+      resolvedAt: null,
+    };
+
+    // same checks as anyone picking a side (whole tokens, enough of them, picks still open)
+    const user = userSnap.data() as User;
+    const sideProblem = canTakeSide(prediction, user, stake, false, now);
+    if (sideProblem) throw new HttpsError("failed-precondition", sideProblem);
+
+    const position: Position = { uid, predictionId: ref.id, side: side as Side, stake, createdAt: now };
+    tx.set(ref, prediction);
+    tx.set(ref.collection("positions").doc(uid), position);
+    tx.update(userRef, { tokens: user.tokens - stake });
+  });
 
   return { id: ref.id };
 });

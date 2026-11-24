@@ -53,14 +53,22 @@ export interface Ranked {
   rank: number; // tied players share a rank, like 1, 2, 2, 4
 }
 
-// everyone in leaderboard order. ties go to more glory, then more calls played
-export function rankPlayers(users: User[]): Ranked[] {
-  const scored = users.map((user) => ({ user, score: leaderboardScore(user) }));
+// everyone who has played, in leaderboard order, plus everyone who hasn't yet.
+// people with no resolved calls go at the bottom so trying the app and losing
+// never ranks you below someone who never played.
+// ties go to more glory, then more calls played
+export function rankPlayers(users: User[]): { ranked: Ranked[]; notPlayed: User[] } {
+  const played = users.filter((u) => u.calls > 0);
+  const notPlayed = users.filter((u) => u.calls === 0);
+
+  const scored = played.map((user) => ({ user, score: leaderboardScore(user) }));
   scored.sort((a, b) => b.score - a.score || b.user.glory - a.user.glory || b.user.calls - a.user.calls);
 
-  return scored.map((row, i) => {
+  const ranked = scored.map((row) => {
     // same score as someone above you means you share their rank
     const first = scored.findIndex((other) => other.score === row.score);
     return { ...row, rank: first + 1 };
   });
+
+  return { ranked, notPlayed };
 }

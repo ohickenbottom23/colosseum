@@ -5,9 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
-import { useAuthUser, usePlayers } from "@/hooks";
+import { useAuthUser, usePlayer, usePlayers } from "@/hooks";
 import { DeadlinePreset, deadlineFromPreset, NewCall, validateNewCall } from "@/lib/calls";
-import { MAX_CALL_TEXT, MAX_LABEL } from "@/lib/constants";
+import { DAILY_TOKENS, MAX_CALL_TEXT, MAX_LABEL } from "@/lib/constants";
+import { canTakeSide } from "@/lib/resolve";
+import { Prediction, Side } from "@/lib/types";
 
 const PRESETS: { value: DeadlinePreset; label: string }[] = [
   { value: "tonight", label: "Tonight" },
@@ -20,6 +22,7 @@ export default function NewCallPage() {
   const router = useRouter();
   const { authUser, loading } = useAuthUser();
   const players = usePlayers(!!authUser);
+  const player = usePlayer(authUser?.uid ?? null);
 
   const [text, setText] = useState("");
   const [aboutFriend, setAboutFriend] = useState(true);
@@ -27,6 +30,8 @@ export default function NewCallPage() {
   const [label, setLabel] = useState("");
   const [preset, setPreset] = useState<DeadlinePreset>("week");
   const [customDate, setCustomDate] = useState("");
+  const [side, setSide] = useState<Side | null>(null);
+  const [stake, setStake] = useState("");
   const [error, setError] = useState("");
   const [posting, setPosting] = useState(false);
 
@@ -64,9 +69,38 @@ export default function NewCallPage() {
       return;
     }
 
+    // you back your own call while posting it
+    if (!side) {
+      setError("Pick your side");
+      return;
+    }
+    const amount = Number(stake);
+    if (player) {
+      // same checks as picking a side on any call
+      const draft: Prediction = {
+        id: "",
+        text: call.text,
+        creatorId: authUser.uid,
+        subjectId: call.subjectId,
+        subjectLabel: call.subjectLabel,
+        groupId: null,
+        deadline: call.deadline,
+        status: "open",
+        outcome: null,
+        voidReason: null,
+        createdAt: Date.now(),
+        resolvedAt: null,
+      };
+      const sideProblem = canTakeSide(draft, player, amount, false, Date.now());
+      if (sideProblem) {
+        setError(sideProblem);
+        return;
+      }
+    }
+
     setPosting(true);
     try {
-      await httpsCallable(functions, "createCall")(call);
+      await httpsCallable(functions, "createCall")({ ...call, side, stake: amount });
       router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -142,9 +176,54 @@ export default function NewCallPage() {
           )}
         </div>
 
+        <div className="field">
+          <span>Your side</span>
+          <div className="chips">
+            <button type="button" className={side === "yes" ? "chip big on" : "chip big"} onClick={() => { setSide("yes"); setError(""); }}>
+              Yes
+            </button>
+            <button type="button" className={side === "no" ? "chip big on" : "chip big"} onClick={() => { setSide("no"); setError(""); }}>
+              No
+            </button>
+          </div>
+        </div>
+
+        <div className="field">
+          <span>How many tokens? You have {player?.tokens ?? "..."}</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={player?.tokens}
+            step={1}
+            value={stake}
+            onChange={(e) => setStake(e.target.value)}
+            placeholder="10"
+          />
+          {player && player.tokens > 0 && (
+            <div className="chips">
+              {[10, 25].filter((n) => n < player.tokens).map((n) => (
+                <button key={n} type="button" className="chip" onClick={() => setStake(String(n))}>
+                  {n}
+                </button>
+              ))}
+              <button type="button" className="chip" onClick={() => setStake(String(player.tokens))}>
+                Max ({player.tokens})
+              </button>
+            </div>
+          )}
+        </div>
+
+        {player?.tokens === 0 && (
+          <p className="muted">You need at least 1 token to back a call. You get {DAILY_TOKENS} more tomorrow.</p>
+        )}
+
         {error && <p className="error">{error}</p>}
 
-        <button type="submit" disabled={posting}>{posting ? "Posting..." : "Post call"}</button>
+        <button type="submit" disabled={posting || player?.tokens === 0}>
+          {posting ? "Posting..." : side ? `Post and back ${side.toUpperCase()}` : "Post call"}
+        </button>
+        <p className="muted small">If nobody else picks a side, it won&apos;t count and you get your tokens back.</p>
       </form>
     </main>
   );

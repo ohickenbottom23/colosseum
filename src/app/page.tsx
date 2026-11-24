@@ -7,10 +7,12 @@ import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/f
 import { auth, db } from "@/firebase";
 import { useAuthUser, useMyPositions, usePlayer, usePlayers } from "@/hooks";
 import { formatGlory, resultLine } from "@/format";
-import { redirectSignInError, signInWithGoogle } from "@/signIn";
 import { Prediction } from "@/lib/types";
+import { picksCloseAt } from "@/lib/resolve";
 import CallCard from "./CallCard";
 import TabBar from "./TabBar";
+import SignInButton from "./SignInButton";
+import AboutYouCard from "./AboutYouCard";
 
 export default function Home() {
   const { authUser, loading, setupError, granted } = useAuthUser();
@@ -21,26 +23,7 @@ export default function Home() {
   const [calls, setCalls] = useState<Prediction[]>([]);
   const [myOpenCalls, setMyOpenCalls] = useState<Prediction[]>([]);
   const [finished, setFinished] = useState<Prediction[]>([]);
-  const [signInError, setSignInError] = useState("");
-
-  const [signingIn, setSigningIn] = useState(false);
-
-  async function signIn() {
-    setSignInError("");
-    setSigningIn(true);
-    const problem = await signInWithGoogle();
-    // a redirect leaves the page, so this only matters for popups and errors
-    setSignInError(problem);
-    setSigningIn(false);
-  }
-
-  // if we just came back from a redirect sign-in, show any error from it
-  useEffect(() => {
-    redirectSignInError().then((problem) => {
-      if (problem) setSignInError(problem);
-    });
-  }, []);
-
+  const [aboutMe, setAboutMe] = useState<Prediction[]>([]);
   // open calls, newest first
   useEffect(() => {
     if (!authUser) {
@@ -66,6 +49,20 @@ export default function Home() {
       q,
       (snap) => setMyOpenCalls(snap.docs.map((d) => d.data() as Prediction)),
       () => setMyOpenCalls([])
+    );
+  }, [uid]);
+
+  // open calls about you. being called out is the main reason people open the app
+  useEffect(() => {
+    if (!uid) {
+      setAboutMe([]);
+      return;
+    }
+    const q = query(collection(db, "predictions"), where("subjectId", "==", uid), where("status", "==", "open"));
+    return onSnapshot(
+      q,
+      (snap) => setAboutMe(snap.docs.map((d) => d.data() as Prediction).sort((a, b) => b.createdAt - a.createdAt)),
+      () => setAboutMe([])
     );
   }, [uid]);
 
@@ -95,10 +92,7 @@ export default function Home() {
       <main>
         <h1>Colosseum</h1>
         <p>Call it. Get proven right in front of your friends.</p>
-        <button onClick={signIn} disabled={signingIn}>
-          {signingIn ? "Signing in..." : "Sign in with Google"}
-        </button>
-        {signInError && <p className="error">{signInError}</p>}
+        <SignInButton />
       </main>
     );
   }
@@ -109,8 +103,10 @@ export default function Home() {
   // your calls past their deadline come first, then ones you can still get in on, then ones you're in
   const needsResult = myOpenCalls.filter((c) => c.deadline <= now).sort((a, b) => a.deadline - b.deadline);
   const needsResultIds = new Set(needsResult.map((c) => c.id));
-  const needsSide = calls.filter((c) => !myPositions.has(c.id) && c.deadline > now);
-  const youreIn = calls.filter((c) => myPositions.has(c.id) && !needsResultIds.has(c.id));
+  // calls about you get their own section at the top, so leave them out of the others
+  const aboutMeIds = new Set(aboutMe.map((c) => c.id));
+  const needsSide = calls.filter((c) => !myPositions.has(c.id) && now < picksCloseAt(c) && !aboutMeIds.has(c.id));
+  const youreIn = calls.filter((c) => myPositions.has(c.id) && !needsResultIds.has(c.id) && !aboutMeIds.has(c.id));
 
   // finished calls you played in or made
   const recent = finished.filter((c) => myPositions.has(c.id) || c.creatorId === authUser.uid).slice(0, 10);
@@ -135,6 +131,7 @@ export default function Home() {
       {granted > 0 && <p className="banner">+{granted} tokens for today</p>}
 
       {player ? (
+        <>
         <div className="stats">
           <div className="stat">
             <span className="stat-number">{formatGlory(player.glory)}</span>
@@ -145,8 +142,21 @@ export default function Home() {
             <span className="stat-label">Tokens</span>
           </div>
         </div>
+        <p className="explainer">Tokens are what you put behind a call. Glory is your record for being right.</p>
+        </>
       ) : (
         !setupError && <p>Setting up your account...</p>
+      )}
+
+      {aboutMe.length > 0 && (
+        <>
+          <h2>About you</h2>
+          <ul className="calls">
+            {aboutMe.map((c) => (
+              <AboutYouCard key={c.id} call={c} nameOf={nameOf} mine={myPositions.get(c.id)} now={now} />
+            ))}
+          </ul>
+        </>
       )}
 
       <Link href="/new" className="button">Make a call</Link>

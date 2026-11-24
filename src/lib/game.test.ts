@@ -13,6 +13,7 @@ import { dailyGrant, splitPot, isValidTimeZone, localDate, pickTimeZone } from "
 import {
   canCreate,
   canTakeSide,
+  picksCloseAt,
   hasNoTakers,
   resolveWindowExpired,
   settle,
@@ -23,6 +24,7 @@ import {
   sweepDecision,
   canDelete,
   deletePayouts,
+  previewIfRight,
 } from "./resolve";
 import { deadlineFromPreset, validateNewCall, NewCall } from "./calls";
 
@@ -163,7 +165,31 @@ describe("creating and joining", () => {
     expect(canTakeSide(p, u, 0, false, DAY)).toBe("Stake has to be at least 1 token");
     expect(canTakeSide(p, u, 2.5, false, DAY)).toBe("Stake has to be at least 1 token");
     expect(canTakeSide(p, u, 51, false, DAY)).toBe("You don't have enough tokens");
-    expect(canTakeSide(p, u, 10, false, 11 * DAY)).toBe("The deadline already passed");
+    expect(canTakeSide(p, u, 10, false, 11 * DAY)).toBe("Picks are closed for this call");
+  });
+
+  it("picks close halfway between posting and the deadline", () => {
+    // posted at 0, deadline at 10 days, so picks close at 5 days
+    const p = makePrediction();
+    const u = makeUser();
+    expect(picksCloseAt(p)).toBe(5 * DAY);
+    expect(canTakeSide(p, u, 10, false, 5 * DAY - 1)).toBeNull();
+    expect(canTakeSide(p, u, 10, false, 5 * DAY)).toBe("Picks are closed for this call");
+    expect(canTakeSide(p, u, 10, false, 8 * DAY)).toBe("Picks are closed for this call");
+  });
+
+  it("halfway is measured from when the call was posted", () => {
+    // posted at day 4, deadline at day 10, so picks close at day 7
+    const p = makePrediction({ createdAt: 4 * DAY });
+    expect(picksCloseAt(p)).toBe(7 * DAY);
+    expect(canTakeSide(p, makeUser(), 10, false, 6 * DAY)).toBeNull();
+    expect(canTakeSide(p, makeUser(), 10, false, 7 * DAY)).toBe("Picks are closed for this call");
+  });
+
+  it("the resolve window still starts at the deadline, not when picks close", () => {
+    const p = makePrediction();
+    expect(resolveWindowExpired(p, 5 * DAY + 49 * 60 * 60 * 1000)).toBe(false);
+    expect(canResolve(p, "maya", 6 * DAY)).toBe("You can settle this after the deadline");
   });
 
   it("the subject can take a side on a call about them", () => {
@@ -382,30 +408,39 @@ describe("leaderboard order", () => {
   it("a proven player ranks above a lucky new one", () => {
     const lucky = makeUser({ uid: "lucky", glory: 112, wins: 1, calls: 1 }); // 112 * 6/11 = 61
     const proven = makeUser({ uid: "proven", glory: 140, wins: 30, calls: 40 }); // 140 * 35/50 = 98
-    const ranked = rankPlayers([lucky, proven]);
+    const { ranked } = rankPlayers([lucky, proven]);
     expect(ranked.map((r) => r.user.uid)).toEqual(["proven", "lucky"]);
     expect(ranked.map((r) => r.score)).toEqual([98, 61]);
   });
 
+  it("people who haven't played go at the bottom, even below people who played and lost", () => {
+    const fresh = makeUser({ uid: "fresh", glory: 100, wins: 0, calls: 0 }); // would score 50
+    const lost = makeUser({ uid: "lost", glory: 100, wins: 0, calls: 10 }); // scores 25
+    const { ranked, notPlayed } = rankPlayers([fresh, lost]);
+    expect(ranked.map((r) => r.user.uid)).toEqual(["lost"]);
+    expect(ranked[0].rank).toBe(1);
+    expect(notPlayed.map((u) => u.uid)).toEqual(["fresh"]);
+  });
+
   it("ties on score go to more glory, then more calls", () => {
     // all three score 50
-    const fresh = makeUser({ uid: "fresh", glory: 100, wins: 0, calls: 0 });
     const played = makeUser({ uid: "played", glory: 100, wins: 5, calls: 10 });
     const richer = makeUser({ uid: "richer", glory: 125, wins: 3, calls: 10 }); // 125 * 8/20 = 50
-    const ranked = rankPlayers([fresh, played, richer]);
-    expect(ranked.map((r) => r.user.uid)).toEqual(["richer", "played", "fresh"]);
+    const more = makeUser({ uid: "more", glory: 100, wins: 15, calls: 30 }); // 100 * 20/40 = 50
+    const { ranked } = rankPlayers([played, more, richer]);
+    expect(ranked.map((r) => r.user.uid)).toEqual(["richer", "more", "played"]);
   });
 
   it("tied scores share a rank", () => {
     const a = makeUser({ uid: "a", glory: 140, wins: 30, calls: 40 }); // 98
-    const b = makeUser({ uid: "b", glory: 100, wins: 0, calls: 0 }); // 50
+    const b = makeUser({ uid: "b", glory: 100, wins: 15, calls: 30 }); // 50
     const c = makeUser({ uid: "c", glory: 100, wins: 5, calls: 10 }); // 50
     const d = makeUser({ uid: "d", glory: 100, wins: 0, calls: 10 }); // 25
-    expect(rankPlayers([d, c, b, a]).map((r) => r.rank)).toEqual([1, 2, 2, 4]);
+    expect(rankPlayers([d, c, b, a]).ranked.map((r) => r.rank)).toEqual([1, 2, 2, 4]);
   });
 
   it("an empty leaderboard is fine", () => {
-    expect(rankPlayers([])).toEqual([]);
+    expect(rankPlayers([])).toEqual({ ranked: [], notPlayed: [] });
   });
 });
 
@@ -433,5 +468,28 @@ describe("the subject taking a call down", () => {
     const payouts = deletePayouts([pos("owen", "no", 30), pos("maya", "yes", 10), pos("jake", "no", 25)], "owen");
     expect(payouts.map((x) => [x.uid, x.tokenChange])).toEqual([["owen", 0], ["maya", 10], ["jake", 25]]);
     expect(payouts.every((x) => x.gloryChange === 0 && !x.won)).toBe(true);
+  });
+});
+
+describe("what you'd get if you're right", () => {
+  const picks = [pos("maya", "yes", 10), pos("jake", "no", 30)];
+
+  it("matches what settling would really pay you", () => {
+    const preview = previewIfRight(picks, "owen", "yes", 20);
+    const real = settle([...picks, pos("owen", "yes", 20)], "yes").find((x) => x.uid === "owen")!;
+    expect(preview).toEqual(real);
+    // stake back plus 2/3 of jake's 30, and glory for being half against the crowd
+    expect(preview.tokenChange).toBe(40);
+    expect(preview.gloryChange).toBe(2.8);
+  });
+
+  it("going against everyone pays more glory than going with them", () => {
+    const withCrowd = previewIfRight(picks, "owen", "no", 20);
+    const alone = previewIfRight([pos("maya", "yes", 10), pos("jake", "yes", 30)], "owen", "no", 20);
+    expect(alone.gloryChange).toBeGreaterThan(withCrowd.gloryChange);
+  });
+
+  it("with nobody on the other side, you just get your stake back", () => {
+    expect(previewIfRight([pos("maya", "yes", 10)], "owen", "yes", 20).tokenChange).toBe(20);
   });
 });

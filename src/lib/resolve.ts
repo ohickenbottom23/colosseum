@@ -10,6 +10,12 @@ export function canCreate(creatorId: string, subjectId: string | null): boolean 
   return subjectId !== creatorId;
 }
 
+// picks close halfway between when a call is posted and its deadline, so people
+// can't wait until the answer is obvious and still get the same glory
+export function picksCloseAt(prediction: Prediction): number {
+  return prediction.createdAt + Math.floor((prediction.deadline - prediction.createdAt) / 2);
+}
+
 export function canTakeSide(
   prediction: Prediction,
   user: User,
@@ -18,7 +24,7 @@ export function canTakeSide(
   now: number
 ): string | null {
   if (prediction.status !== "open") return "This call isn't open anymore";
-  if (now >= prediction.deadline) return "The deadline already passed";
+  if (now >= picksCloseAt(prediction)) return "Picks are closed for this call";
   if (alreadyHasPosition) return "You already picked a side";
   if (!Number.isInteger(stake) || stake < 1) return "Stake has to be at least 1 token";
   if (stake > user.tokens) return "You don't have enough tokens";
@@ -99,6 +105,15 @@ export function settle(positions: Position[], outcome: Side): Payout[] {
       won,
     };
   });
+}
+
+// what you'd get if you picked this side and turned out right, given everyone's picks so far.
+// it runs the real settle() so the estimate always matches the real payout math.
+// it's only an estimate because more people can still pick a side
+export function previewIfRight(positions: Position[], uid: string, side: Side, stake: number): Payout {
+  const mine: Position = { uid, predictionId: "", side, stake, createdAt: 0 };
+  const withMine = [...positions.filter((p) => p.uid !== uid), mine];
+  return settle(withMine, side).find((p) => p.uid === uid)!;
 }
 
 // ---------- the subject taking a call down ----------

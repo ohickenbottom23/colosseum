@@ -6,9 +6,12 @@ import { useParams, useRouter } from "next/navigation";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/firebase";
+import SignInButton from "../../SignInButton";
+import ShareButton from "../../ShareButton";
+import TakeDown from "../../TakeDown";
 import { useAuthUser, usePlayer, usePlayers } from "@/hooks";
-import { callText, resultLine, timeLeft, voidReasonText } from "@/format";
-import { canDelete, canResolve, canTakeSide } from "@/lib/resolve";
+import { callText, formatGlory, picksCloseText, resultLine, timeLeft, voidReasonText } from "@/format";
+import { canDelete, canResolve, canTakeSide, picksCloseAt, previewIfRight } from "@/lib/resolve";
 import { DAILY_TOKENS, RESOLVE_WINDOW_MS } from "@/lib/constants";
 import { Position, Prediction, Side } from "@/lib/types";
 
@@ -34,15 +37,6 @@ export default function CallPage() {
   const [settleError, setSettleError] = useState("");
   const [settling, setSettling] = useState(false);
 
-  // taking it down, for the person it's about
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleteError, setDeleteError] = useState("");
-  const [deleting, setDeleting] = useState(false);
-
-  // this page is only for signed in players
-  useEffect(() => {
-    if (!loading && !authUser) router.replace("/");
-  }, [loading, authUser, router]);
 
   // the call itself
   useEffect(() => {
@@ -75,6 +69,16 @@ export default function CallPage() {
       </main>
     );
   }
+  // opened a shared link while signed out. sign in right here so they stay on this call
+  if (!loading && !authUser) {
+    return (
+      <main>
+        <h1>Colosseum</h1>
+        <p>A friend sent you a call. Sign in to see it and pick a side.</p>
+        <SignInButton />
+      </main>
+    );
+  }
   if (!authUser || !call) return <main><p>Loading...</p></main>;
 
   const nameOf = (u: string) => players.find((p) => p.uid === u)?.displayName ?? "Someone";
@@ -83,7 +87,13 @@ export default function CallPage() {
   const mine = positions.find((p) => p.uid === authUser.uid);
   const yes = positions.filter((p) => p.side === "yes");
   const no = positions.filter((p) => p.side === "no");
-  const canStillPick = call.status === "open" && now < call.deadline;
+  const closeAt = picksCloseAt(call);
+  const canStillPick = call.status === "open" && now < closeAt;
+
+  // what you'd get if you're right, recalculated as you type a stake
+  const amount = Number(stake);
+  const validStake = !!player && Number.isInteger(amount) && amount >= 1 && amount <= player.tokens;
+  const preview = side && validStake ? previewIfRight(positions, authUser.uid, side, amount) : null;
   const isCreator = call.creatorId === authUser.uid;
   const waitingOnResult = call.status === "open" && now >= call.deadline;
   // null means the creator can settle it right now
@@ -110,19 +120,6 @@ export default function CallPage() {
     setSaving(false);
   }
 
-  async function takeDown() {
-    if (!call) return;
-    setDeleteError("");
-    setDeleting(true);
-    try {
-      await httpsCallable(functions, "deleteCall")({ predictionId: call.id });
-      router.push("/");
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "Something went wrong");
-      setDeleting(false);
-    }
-  }
-
   async function settleIt() {
     if (!call || !outcome) return;
     setSettleError("");
@@ -145,6 +142,8 @@ export default function CallPage() {
         About {about} · by {nameOf(call.creatorId)}
         {call.status === "open" && <> · {timeLeft(call.deadline, now)}</>}
       </p>
+      {call.status === "open" && <p className="closes">{picksCloseText(closeAt, now)}</p>}
+      {call.text && <ShareButton callId={call.id} text={call.text} />}
 
       {/* how it ended */}
       {call.status === "resolved" && (
@@ -220,7 +219,7 @@ export default function CallPage() {
           </p>
         )
       ) : !canStillPick ? (
-        call.status === "open" && !waitingOnResult && <p className="muted">This call isn&apos;t taking sides anymore.</p>
+        call.status === "open" && !waitingOnResult && <p className="muted">Picks are closed. The result comes after the deadline.</p>
       ) : !player ? (
         <p>Loading...</p>
       ) : player.tokens === 0 ? (
@@ -263,6 +262,16 @@ export default function CallPage() {
             </div>
           </div>
 
+          {preview && (
+            <div className="estimate">
+              <p>
+                If you&apos;re right: about <strong>{preview.tokenChange} tokens back</strong> and{" "}
+                <strong>+{formatGlory(preview.gloryChange)} Glory</strong>
+              </p>
+              <p className="small-left">Estimate. It changes as more people pick a side.</p>
+            </div>
+          )}
+
           {error && <p className="error">{error}</p>}
 
           <button onClick={backIt} disabled={!side || !stake || saving}>
@@ -273,25 +282,12 @@ export default function CallPage() {
       )}
       {/* the person it's about can always take it down until it's settled */}
       {!canDelete(call, authUser.uid) && (
-        <div className="takedown">
-          {!confirmDelete ? (
-            <button type="button" className="link-button" onClick={() => setConfirmDelete(true)}>
-              This call is about you. Take it down
-            </button>
-          ) : (
-            <div className="form">
-              <p>
-                This removes the call for everyone and gives everyone their tokens back
-                {mine ? ", except your own " + mine.stake : ""}. You can&apos;t undo it.
-              </p>
-              <button onClick={takeDown} disabled={deleting}>{deleting ? "Taking it down..." : "Take it down"}</button>
-              <button className="secondary" onClick={() => setConfirmDelete(false)} disabled={deleting}>
-                Keep it up
-              </button>
-            </div>
-          )}
-          {deleteError && <p className="error">{deleteError}</p>}
-        </div>
+        <TakeDown
+          callId={call.id}
+          myStake={mine?.stake ?? null}
+          label="This call is about you. Take it down"
+          onDone={() => router.push("/")}
+        />
       )}
     </main>
   );

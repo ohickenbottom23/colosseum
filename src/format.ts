@@ -1,15 +1,27 @@
-// "3 days left", "5 hours left", etc
-export function timeLeft(deadline: number, now: number): string {
-  const ms = deadline - now;
-  if (ms <= 0) return "Deadline passed";
+// "3 days", "5 hours", etc. until a time, or null if it already passed
+export function timeUntil(time: number, now: number): string | null {
+  const ms = time - now;
+  if (ms <= 0) return null;
 
   const minutes = Math.floor(ms / 60000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
 
-  if (days >= 1) return days === 1 ? "1 day left" : `${days} days left`;
-  if (hours >= 1) return hours === 1 ? "1 hour left" : `${hours} hours left`;
-  return minutes <= 1 ? "1 minute left" : `${minutes} minutes left`;
+  if (days >= 1) return days === 1 ? "1 day" : `${days} days`;
+  if (hours >= 1) return hours === 1 ? "1 hour" : `${hours} hours`;
+  return minutes <= 1 ? "1 minute" : `${minutes} minutes`;
+}
+
+// "3 days left", or "Deadline passed"
+export function timeLeft(deadline: number, now: number): string {
+  const left = timeUntil(deadline, now);
+  return left ? `${left} left` : "Deadline passed";
+}
+
+// "Picks close in 2 days", or "Picks closed"
+export function picksCloseText(closeAt: number, now: number): string {
+  const left = timeUntil(closeAt, now);
+  return left ? `Picks close in ${left}` : "Picks closed";
 }
 
 // glory is kept to one decimal, but don't show ".0"
