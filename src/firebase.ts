@@ -20,7 +20,9 @@ export const functions = getFunctions(app);
 const g = globalThis as { emulatorsConnected?: boolean };
 
 if (process.env.NEXT_PUBLIC_USE_EMULATORS === "true" && !g.emulatorsConnected) {
-  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  // "localhost", not 127.0.0.1, so the emulator counts as the same site as the app (localhost:3000).
+  // browsers wall off storage between different sites, which breaks redirect sign-in
+  connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
   connectFirestoreEmulator(db, "127.0.0.1", 8080);
   connectFunctionsEmulator(functions, "127.0.0.1", 5001);
   g.emulatorsConnected = true;

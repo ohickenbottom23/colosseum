@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { signOut } from "firebase/auth";
 import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "@/firebase";
 import { useAuthUser, useMyPositions, usePlayer, usePlayers } from "@/hooks";
 import { formatGlory, resultLine } from "@/format";
+import { redirectSignInError, signInWithGoogle } from "@/signIn";
 import { Prediction } from "@/lib/types";
 import CallCard from "./CallCard";
 import TabBar from "./TabBar";
@@ -22,18 +23,23 @@ export default function Home() {
   const [finished, setFinished] = useState<Prediction[]>([]);
   const [signInError, setSignInError] = useState("");
 
+  const [signingIn, setSigningIn] = useState(false);
+
   async function signIn() {
     setSignInError("");
-    try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (err) {
-      const code = (err as { code?: string }).code;
-      // closing the popup yourself isn't an error
-      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return;
-      if (code === "auth/popup-blocked") setSignInError("Your browser blocked the sign-in window. Allow popups and try again.");
-      else setSignInError("Couldn't sign in. Try again.");
-    }
+    setSigningIn(true);
+    const problem = await signInWithGoogle();
+    // a redirect leaves the page, so this only matters for popups and errors
+    setSignInError(problem);
+    setSigningIn(false);
   }
+
+  // if we just came back from a redirect sign-in, show any error from it
+  useEffect(() => {
+    redirectSignInError().then((problem) => {
+      if (problem) setSignInError(problem);
+    });
+  }, []);
 
   // open calls, newest first
   useEffect(() => {
@@ -89,7 +95,9 @@ export default function Home() {
       <main>
         <h1>Colosseum</h1>
         <p>Call it. Get proven right in front of your friends.</p>
-        <button onClick={signIn}>Sign in with Google</button>
+        <button onClick={signIn} disabled={signingIn}>
+          {signingIn ? "Signing in..." : "Sign in with Google"}
+        </button>
         {signInError && <p className="error">{signInError}</p>}
       </main>
     );
