@@ -415,3 +415,27 @@ main.with-tabs {
   font-size: 30px;
   color: var(--gold);
 }
+
+/* a call the person it was about took down */
+.removed {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.takedown {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(246, 239, 224, 0.15);
+}
+
+/* looks like a plain link, on purpose so it's not a big scary button */
+button.link-button {
+  width: auto;
+  padding: 0;
+  background: none;
+  color: var(--cream);
+  opacity: 0.7;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: underline;
+}

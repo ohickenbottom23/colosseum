@@ -101,6 +101,21 @@ export function settle(positions: Position[], outcome: Side): Payout[] {
   });
 }
 
+// ---------- the subject taking a call down ----------
+
+// only the person a call is about can take it down, and only before it's settled
+export function canDelete(prediction: Prediction, uid: string): string | null {
+  if (!prediction.subjectId || prediction.subjectId !== uid) return "Only the person this call is about can take it down";
+  if (prediction.status !== "open") return "This call is already over";
+  return null;
+}
+
+// everyone gets their stake back except the subject. otherwise you could back a side
+// on a call about yourself, see you're losing, and take it down to get out free
+export function deletePayouts(positions: Position[], subjectId: string): Payout[] {
+  return refundAll(positions).map((p) => (p.uid === subjectId ? { ...p, tokenChange: 0 } : p));
+}
+
 // ---------- disputes ----------
 
 // participants vote on what actually happened. tie = void

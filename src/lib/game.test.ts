@@ -21,6 +21,8 @@ import {
   canResolve,
   applyPayout,
   sweepDecision,
+  canDelete,
+  deletePayouts,
 } from "./resolve";
 import { deadlineFromPreset, validateNewCall, NewCall } from "./calls";
 
@@ -404,5 +406,32 @@ describe("leaderboard order", () => {
 
   it("an empty leaderboard is fine", () => {
     expect(rankPlayers([])).toEqual([]);
+  });
+});
+
+describe("the subject taking a call down", () => {
+  const p = makePrediction(); // maya made it, it's about owen
+
+  it("only the person it's about can take it down", () => {
+    expect(canDelete(p, "owen")).toBeNull();
+    expect(canDelete(p, "maya")).toBe("Only the person this call is about can take it down");
+    expect(canDelete(p, "jake")).toBe("Only the person this call is about can take it down");
+  });
+
+  it("calls about a label like the weather can't be taken down", () => {
+    const weather = makePrediction({ subjectId: null, subjectLabel: "the weather" });
+    expect(canDelete(weather, "owen")).toBe("Only the person this call is about can take it down");
+    expect(canDelete(weather, "maya")).toBe("Only the person this call is about can take it down");
+  });
+
+  it("can't take down a call that's already over", () => {
+    expect(canDelete({ ...p, status: "resolved" }, "owen")).toBe("This call is already over");
+    expect(canDelete({ ...p, status: "void" }, "owen")).toBe("This call is already over");
+  });
+
+  it("everyone gets their stake back except the subject", () => {
+    const payouts = deletePayouts([pos("owen", "no", 30), pos("maya", "yes", 10), pos("jake", "no", 25)], "owen");
+    expect(payouts.map((x) => [x.uid, x.tokenChange])).toEqual([["owen", 0], ["maya", 10], ["jake", 25]]);
+    expect(payouts.every((x) => x.gloryChange === 0 && !x.won)).toBe(true);
   });
 });

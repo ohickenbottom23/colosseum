@@ -7,8 +7,8 @@ import { collection, doc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/firebase";
 import { useAuthUser, usePlayer, usePlayers } from "@/hooks";
-import { resultLine, timeLeft, voidReasonText } from "@/format";
-import { canResolve, canTakeSide } from "@/lib/resolve";
+import { callText, resultLine, timeLeft, voidReasonText } from "@/format";
+import { canDelete, canResolve, canTakeSide } from "@/lib/resolve";
 import { DAILY_TOKENS, RESOLVE_WINDOW_MS } from "@/lib/constants";
 import { Position, Prediction, Side } from "@/lib/types";
 
@@ -33,6 +33,11 @@ export default function CallPage() {
   const [outcome, setOutcome] = useState<Side | null>(null);
   const [settleError, setSettleError] = useState("");
   const [settling, setSettling] = useState(false);
+
+  // taking it down, for the person it's about
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   // this page is only for signed in players
   useEffect(() => {
@@ -105,6 +110,19 @@ export default function CallPage() {
     setSaving(false);
   }
 
+  async function takeDown() {
+    if (!call) return;
+    setDeleteError("");
+    setDeleting(true);
+    try {
+      await httpsCallable(functions, "deleteCall")({ predictionId: call.id });
+      router.push("/");
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Something went wrong");
+      setDeleting(false);
+    }
+  }
+
   async function settleIt() {
     if (!call || !outcome) return;
     setSettleError("");
@@ -122,7 +140,7 @@ export default function CallPage() {
     <main>
       <Link href="/" className="back">← Back</Link>
 
-      <p className="call-big">{call.text}</p>
+      <p className={call.text ? "call-big" : "call-big removed"}>{callText(call.text)}</p>
       <p className="call-meta">
         About {about} · by {nameOf(call.creatorId)}
         {call.status === "open" && <> · {timeLeft(call.deadline, now)}</>}
@@ -138,7 +156,11 @@ export default function CallPage() {
       {call.status === "void" && (
         <div className="result">
           <h3>Didn&apos;t count</h3>
-          <p>{voidReasonText(call.voidReason, nameOf(call.creatorId))} Everyone got their tokens back.</p>
+          <p>
+            {voidReasonText(call.voidReason, nameOf(call.creatorId))}{" "}
+            {call.voidReason === "subject_killed" ? "Everyone else got their tokens back." : "Everyone got their tokens back."}
+          </p>
+          {mine?.result && <p>{resultLine(mine.result, true)}.</p>}
         </div>
       )}
 
@@ -247,6 +269,28 @@ export default function CallPage() {
             {saving ? "Saving..." : side ? `Back ${side.toUpperCase()}` : "Back it"}
           </button>
           <p className="muted small">You can&apos;t switch sides once you pick.</p>
+        </div>
+      )}
+      {/* the person it's about can always take it down until it's settled */}
+      {!canDelete(call, authUser.uid) && (
+        <div className="takedown">
+          {!confirmDelete ? (
+            <button type="button" className="link-button" onClick={() => setConfirmDelete(true)}>
+              This call is about you. Take it down
+            </button>
+          ) : (
+            <div className="form">
+              <p>
+                This removes the call for everyone and gives everyone their tokens back
+                {mine ? ", except your own " + mine.stake : ""}. You can&apos;t undo it.
+              </p>
+              <button onClick={takeDown} disabled={deleting}>{deleting ? "Taking it down..." : "Take it down"}</button>
+              <button className="secondary" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+                Keep it up
+              </button>
+            </div>
+          )}
+          {deleteError && <p className="error">{deleteError}</p>}
         </div>
       )}
     </main>

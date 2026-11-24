@@ -6,7 +6,9 @@ import { START_GLORY, START_TOKENS } from "../../src/lib/constants";
 import { Payout, Position, Prediction, Side, User, VoidReason } from "../../src/lib/types";
 import {
   applyPayout,
+  canDelete,
   canResolve,
+  deletePayouts,
   canTakeSide,
   hasNoTakers,
   refundAll,
@@ -284,6 +286,39 @@ export const resolveCall = onCall(async (request) => {
   });
 
   return { status };
+});
+
+// the person a call is about takes it down. everyone else gets their tokens back,
+// and the text is wiped so the words about them are gone
+export const deleteCall = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first");
+  }
+
+  const data = request.data ?? {};
+  const predictionId = typeof data.predictionId === "string" ? data.predictionId : "";
+  if (!predictionId || predictionId.includes("/")) {
+    throw new HttpsError("invalid-argument", "That call doesn't exist");
+  }
+
+  const uid = request.auth.uid;
+  const ref = db.doc(`predictions/${predictionId}`);
+
+  await db.runTransaction(async (tx) => {
+    const call = await loadCall(tx, ref);
+    if (!call) throw new HttpsError("not-found", "That call doesn't exist");
+
+    const problem = canDelete(call.prediction, uid);
+    if (problem) throw new HttpsError("failed-precondition", problem);
+
+    finishCall(tx, ref, call, deletePayouts(call.positions, uid), false, {
+      status: "void",
+      voidReason: "subject_killed",
+      text: "",
+    });
+  });
+
+  return { ok: true };
 });
 
 // ---------- voiding calls nobody settled ----------

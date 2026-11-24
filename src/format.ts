@@ -19,6 +19,8 @@ export function formatGlory(glory: number): string {
 
 // how a finished call went for you, in plain words
 export function resultLine(result: { tokenChange: number; gloryChange: number; won: boolean }, voided: boolean): string {
+  // the only time a voided call gives 0 back is when you took down a call about yourself
+  if (voided && result.tokenChange === 0) return "You took it down, so your tokens stayed in";
   if (voided) return `You got your ${result.tokenChange} tokens back`;
   if (result.won) return `You were right. +${formatGlory(result.gloryChange)} Glory, ${result.tokenChange} tokens back`;
   return `You were wrong. −${formatGlory(-result.gloryChange)} Glory`;
@@ -31,4 +33,10 @@ export function voidReasonText(reason: string | null, creatorName: string): stri
   if (reason === "subject_killed") return "The person it was about took it down.";
   if (reason === "tied_vote") return "The vote came out even.";
   return "It didn't count.";
+}
+
+// a call's text, or a note if the person it was about took it down (we wipe the text then)
+export const REMOVED_TEXT = "Removed by the person it was about";
+export function callText(text: string): string {
+  return text || REMOVED_TEXT;
 }
