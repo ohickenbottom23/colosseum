@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthUser, usePlayers } from "@/hooks";
-import { formatGlory } from "@/format";
+import { useAuthUser, useMyArenas, usePlayers } from "@/hooks";
+import { arenaInviteUrl, formatGlory } from "@/format";
 import { rankPlayers } from "@/lib/glory";
 import TabBar from "../TabBar";
+import ShareButton from "../ShareButton";
+import NewArenaForm from "../NewArenaForm";
 
 export default function LeaderboardPage() {
   const router = useRouter();
   const { authUser, loading } = useAuthUser();
   const players = usePlayers(!!authUser);
+  const arenas = useMyArenas(authUser?.uid ?? null);
+  const [arenaId, setArenaId] = useState("");
+  const [makingArena, setMakingArena] = useState(false);
 
   // this page is only for signed in players
   useEffect(() => {
@@ -19,14 +24,45 @@ export default function LeaderboardPage() {
 
   if (!authUser) return <main><p>Loading...</p></main>;
 
-  const { ranked, notPlayed } = rankPlayers(players);
+  // the arena you picked, or your first one until you pick
+  const arena = arenas.find((a) => a.id === arenaId) ?? arenas[0];
+
+  // glory and records belong to the person, so this just ranks the arena's members
+  const members = players.filter((p) => arena?.memberIds.includes(p.uid));
+  const { ranked, notPlayed } = rankPlayers(members);
   const me = ranked.find((r) => r.user.uid === authUser.uid);
   const iHaventPlayed = notPlayed.some((u) => u.uid === authUser.uid);
 
   return (
     <main className="with-tabs">
       <h1>Leaderboard</h1>
-      <p className="muted">Ranked by Glory and how often you&apos;re right.</p>
+
+      {arenas.length > 0 && (
+        <div className="arena-switcher">
+          <select value={arena?.id ?? ""} onChange={(e) => setArenaId(e.target.value)} aria-label="Arena">
+            {arenas.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+          {arena && (
+            <p className="muted">
+              {arena.memberIds.length} {arena.memberIds.length === 1 ? "person" : "people"} · all time
+            </p>
+          )}
+        </div>
+      )}
+
+      {arena && (
+        <ShareButton
+          url={arenaInviteUrl(window.location.origin, arena.inviteCode)}
+          text={`Join ${arena.name} on Colosseum`}
+          label="Invite people"
+        />
+      )}
+
+      {arena && <p className="muted">Ranked by Glory and how often you&apos;re right.</p>}
 
       {me && (
         <p className="banner">
@@ -68,6 +104,22 @@ export default function LeaderboardPage() {
           </ul>
         </>
       )}
+
+      {/* make another arena (or your first one) */}
+      <div className="new-arena">
+        {arenas.length > 0 && !makingArena ? (
+          <button type="button" className="link-button" onClick={() => setMakingArena(true)}>
+            + New arena
+          </button>
+        ) : (
+          <NewArenaForm
+            onMade={(id) => {
+              setArenaId(id);
+              setMakingArena(false);
+            }}
+          />
+        )}
+      </div>
 
       <TabBar />
     </main>

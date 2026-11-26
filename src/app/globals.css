@@ -499,3 +499,18 @@ a.plain-link {
   margin-top: 10px;
   padding-top: 10px;
 }
+
+/* arena picker on the leaderboard */
+.arena-switcher {
+  margin-bottom: 12px;
+}
+
+.arena-switcher select {
+  width: auto;
+  min-width: 60%;
+  font-weight: 700;
+}
+
+.new-arena {
+  margin-top: 32px;
+}

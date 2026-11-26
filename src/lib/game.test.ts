@@ -27,11 +27,13 @@ import {
   previewIfRight,
 } from "./resolve";
 import { deadlineFromPreset, validateNewCall, NewCall } from "./calls";
+import { validateArenaName, isMember, canJoinArena, canMakeArena } from "./arenas";
 
 // little helpers so tests are shorter
 const pos = (uid: string, side: "yes" | "no", stake: number): Position => ({
   uid,
   predictionId: "p1",
+  arenaId: "a1",
   side,
   stake,
   createdAt: 0,
@@ -45,7 +47,7 @@ const makePrediction = (overrides: Partial<Prediction> = {}): Prediction => ({
   creatorId: "maya",
   subjectId: "owen",
   subjectLabel: null,
-  groupId: null,
+  arenaId: "a1",
   deadline: 10 * DAY,
   status: "open",
   outcome: null,
@@ -64,7 +66,7 @@ const makeUser = (overrides: Partial<User> = {}): User => ({
   wins: 0,
   calls: 0,
   missedResolves: 0,
-  friendIds: [],
+  arenaIds: ["a1"],
   lastGrantDate: "2026-11-19",
   timeZone: "America/Chicago",
   timeZoneChangedAt: 0,
@@ -499,5 +501,34 @@ describe("what you'd get if you're right", () => {
 
   it("with nobody on the other side, you just get your stake back", () => {
     expect(previewIfRight([pos("maya", "yes", 10)], "owen", "yes", 20).tokenChange).toBe(20);
+  });
+});
+
+describe("arenas", () => {
+  it("needs a name, but not a long one", () => {
+    expect(validateArenaName("Third Floor")).toBeNull();
+    expect(validateArenaName("   ")).toBe("Give your arena a name");
+    expect(validateArenaName("x".repeat(31))).toBe("Keep the name under 30 characters");
+  });
+
+  it("knows who's in it", () => {
+    const arena = { memberIds: ["maya", "jake"] };
+    expect(isMember(arena, "maya")).toBe(true);
+    expect(isMember(arena, "sam")).toBe(false);
+  });
+
+  it("joining twice is fine, joining a full arena isn't", () => {
+    expect(canJoinArena({ memberIds: ["maya"] }, "maya", ["a1"])).toBeNull();
+    expect(canJoinArena({ memberIds: ["maya"] }, "jake", [])).toBeNull();
+    const full = { memberIds: Array.from({ length: 50 }, (_, i) => `p${i}`) };
+    expect(canJoinArena(full, "jake", [])).toBe("This arena is full");
+    expect(canJoinArena(full, "p3", ["a1"])).toBeNull();
+  });
+
+  it("you can be in up to 30 arenas", () => {
+    const thirty = Array.from({ length: 30 }, (_, i) => `a${i}`);
+    expect(canMakeArena(thirty.slice(1))).toBeNull();
+    expect(canMakeArena(thirty)).toBe("You're in too many arenas already");
+    expect(canJoinArena({ memberIds: ["maya"] }, "jake", thirty)).toBe("You're in too many arenas already");
   });
 });

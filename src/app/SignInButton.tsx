@@ -5,7 +5,7 @@ import { redirectSignInError, signInWithGoogle } from "@/signIn";
 
 // the Google sign-in button. used on home, and on a call page when someone
 // opens a shared link signed out (so they land back on that call after)
-export default function SignInButton() {
+export default function SignInButton({ label = "Sign in with Google" }: { label?: string }) {
   const [error, setError] = useState("");
   const [signingIn, setSigningIn] = useState(false);
 
@@ -27,7 +27,7 @@ export default function SignInButton() {
   return (
     <>
       <button onClick={signIn} disabled={signingIn}>
-        {signingIn ? "Signing in..." : "Sign in with Google"}
+        {signingIn ? "Signing in..." : label}
       </button>
       {error && <p className="error">{error}</p>}
     </>

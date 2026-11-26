@@ -1,6 +1,6 @@
 # Colosseum
 
-Social prediction game for college students. Friends make calls about each other's real lives (or anything else), pick a side, and stake tokens. Being right earns Glory, a permanent score. No real money anywhere, and tokens can't be bought.
+Social prediction game for college students. Friends in an arena (their friend group) make calls about each other's real lives (or anything else), pick a side, and stake tokens. Being right earns Glory, a permanent score. No real money anywhere, and tokens can't be bought.
 
 ## Stack and layout
 
@@ -20,6 +20,9 @@ Social prediction game for college students. Friends make calls about each other
 
 Never use gambling words in anything a user sees. Say "call" or "prediction", not "bet" or "line". Say "back it" or "pick a side", not "wager". Glory is the reward, not "payout".
 
+- Multipliers say "return": "3.0x return", "1.1x return". Never "payout", "pays", or "odds".
+- Groups are called "arenas" everywhere a user can see.
+
 ## Game rules
 
 Calls
@@ -27,7 +30,7 @@ Calls
 - You can't make a call about yourself, but you can pick a side on a call about you.
 - The subject of a call can delete it.
 - Deadline presets: tonight, this week, this month, or a custom date.
-- Posted to a group or to all your friends.
+- Posted to exactly one arena. Only its members can see it, pick a side, or react. A call about a person needs that person to be in the arena.
 
 Playing
 - Stake any whole number of tokens you have. The stake comes out of your balance right away.
@@ -38,14 +41,21 @@ Resolution
 - The creator resolves it within 48 hours of the deadline. If they don't, it's voided, everyone gets their stake back, and the creator's `missedResolves` goes up.
 - Any participant can dispute a result. Then participants vote, majority wins, and a tie voids it.
 
+Arenas
+- An arena has a name, members (max 50), and an invite link. Any member can invite. A player can be in up to 30 arenas.
+- Arena membership replaces the friends list. There's no "all friends" posting.
+- Glory, rank, tokens, and records belong to the person, not the arena. Each arena's leaderboard ranks its members.
+- A shared call link (`/call/{id}?i={inviteCode}`) is also an invite: signing in from it joins the arena and lands on that call. `/join/{inviteCode}` is a plain arena invite.
+- Making and joining arenas happens in Cloud Functions (`createArena`, `joinArena`). Signed-out previews of an invite go through `previewInvite`, which needs the invite code.
+
 Tokens
 - 50 tokens a day, but the daily grant won't push you past 200
 - Winners get their stake back plus a share of the losers' pot, split by how much they staked. If nobody won, the pot disappears.
 
 Glory
 - Start at 100. It can't go below 100.
-- Win: 10 x (0.2 + contrarian) x stakeFactor
-- Loss: 5 x stakeFactor (losing costs less than winning pays)
+- Win: 50 x (0.2 + contrarian) x stakeFactor
+- Loss: 25 x stakeFactor (losing costs less than winning pays)
 - contrarian = share of other players who picked the opposite side (0 to 1)
 - stakeFactor = stake / 50, capped at 2
 - Kept to one decimal place, so tiny stakes still win and lose a little
@@ -55,20 +65,22 @@ All the numbers are in `src/lib/constants.ts` and will get tuned after real peop
 
 ## Security (important)
 
-Friends will try to cheat. Clients must never write glory, tokens, wins, or calls directly.
+Friends will try to cheat. Clients must never write glory, tokens, wins, calls, or arena membership directly.
 - Taking a side (deducting tokens and writing the position) happens in one transaction
 - Settling, voiding, and the daily grant happen in Cloud Functions
 - Firestore rules block clients from editing those fields
+- Membership lives in two places that change together, only in Cloud Functions: `arenas/{id}.memberIds` and `users/{uid}.arenaIds`. The rules check `arenaIds` on your own user doc.
+- Firestore rules: only members of a call's arena can read the call and its sides (and later reactions and comments). Queries must filter by `arenaId` (home uses `arenaId in [your arenas]`), or the rules turn them down.
+- `npm run test:rules` and `npm run test:functions` run against the emulators. Add cases there when touching rules or functions.
 
 ## V1 scope
 
-In: Google sign-in, create a call, pick a side, resolve, Glory updates, leaderboard tab. The home screen shows open calls that still need your side.
+In: Google sign-in, arenas and invite links, create a call, pick a side, resolve, Glory updates, leaderboard tab. The home screen shows open calls that still need your side.
 
-Not yet: groups and invite links, activity feed, notifications, streaks, seasons, any monetization.
+Not yet: activity feed, notifications, streaks, seasons, any monetization.
 
 ## Open questions
 
-- How people find each other in V1 before groups exist. Maybe everyone signed in sees everyone, since only friends will have the link.
 - Exact Glory numbers, to tune after playtesting
 - What brings people back every day, to figure out after V1 works
 

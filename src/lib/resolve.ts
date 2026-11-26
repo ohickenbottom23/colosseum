@@ -111,7 +111,7 @@ export function settle(positions: Position[], outcome: Side): Payout[] {
 // it runs the real settle() so the estimate always matches the real payout math.
 // it's only an estimate because more people can still pick a side
 export function previewIfRight(positions: Position[], uid: string, side: Side, stake: number): Payout {
-  const mine: Position = { uid, predictionId: "", side, stake, createdAt: 0 };
+  const mine: Position = { uid, predictionId: "", arenaId: "", side, stake, createdAt: 0 };
   const withMine = [...positions.filter((p) => p.uid !== uid), mine];
   return settle(withMine, side).find((p) => p.uid === uid)!;
 }

@@ -3,25 +3,45 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // anyone signed in can see players (for the leaderboard).
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // the arenas you're in, from your own player record (only Cloud Functions change it)
+    function inArena(arenaId) {
+      return signedIn() && arenaId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.arenaIds;
+    }
+
+    // anyone signed in can see players (name, photo, glory, record).
     // nobody writes them from the app, only Cloud Functions do
     match /users/{uid} {
-      allow read: if request.auth != null;
+      allow read: if signedIn();
       allow write: if false;
     }
 
-    // no groups yet, so anyone signed in can see every call.
-    // calls are made and changed only by Cloud Functions
+    // you can see arenas you're in. making and joining them goes through Cloud Functions
+    match /arenas/{arenaId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.memberIds;
+      allow write: if false;
+    }
+
+    // calls are only visible to members of the arena they were posted in.
+    // made and changed only by Cloud Functions
     match /predictions/{predictionId} {
-      allow read: if request.auth != null;
+      allow read: if inArena(resource.data.arenaId);
       allow write: if false;
+
+      // who picked which side, visible to the same people as the call.
+      // written only by Cloud Functions (takeSide, createCall)
+      match /positions/{uid} {
+        allow read: if inArena(get(/databases/$(database)/documents/predictions/$(predictionId)).data.arenaId);
+        allow write: if false;
+      }
     }
 
-    // who picked which side. everyone signed in can see them (names and sides show
-    // before the deadline). written only by the takeSide Cloud Function.
-    // the {path=**} part lets the app search positions across every call at once
+    // lets the app find all of your own positions across every call at once
     match /{path=**}/positions/{uid} {
-      allow read: if request.auth != null;
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
       allow write: if false;
     }
 

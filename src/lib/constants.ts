@@ -28,3 +28,8 @@ export const MAX_DEADLINE_MS = 365 * 24 * 60 * 60 * 1000; // at most a year out
 // leaderboard smoothing, pulls small samples toward 50%
 export const SMOOTH_WINS = 5;
 export const SMOOTH_CALLS = 10;
+
+// arenas
+export const MAX_ARENA_NAME = 30;
+export const MAX_ARENA_MEMBERS = 50; // a friend group, not a stadium
+export const MAX_ARENAS_PER_PLAYER = 30; // home loads every arena's calls in one query, and 30 is that query's limit

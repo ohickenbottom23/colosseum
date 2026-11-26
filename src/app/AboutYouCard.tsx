@@ -8,11 +8,13 @@ import TakeDown from "./TakeDown";
 export default function AboutYouCard({
   call,
   nameOf,
+  arenaName,
   mine,
   now,
 }: {
   call: Prediction;
   nameOf: (uid: string) => string;
+  arenaName: string;
   mine?: Position;
   now: number;
 }) {
@@ -24,7 +26,7 @@ export default function AboutYouCard({
       <Link href={`/call/${call.id}`} className="plain-link">
         <p className="call-text">{call.text}</p>
         <p className="call-meta">
-          by {nameOf(call.creatorId)} · {when}
+          {arenaName && <>{arenaName} · </>}by {nameOf(call.creatorId)} · {when}
         </p>
         {mine && <p className="call-mine">You picked {mine.side.toUpperCase()}</p>}
       </Link>

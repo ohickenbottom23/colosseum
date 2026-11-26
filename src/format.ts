@@ -60,3 +60,18 @@ export function cardTimeText(closeAt: number, deadline: number, now: number): st
   const left = timeUntil(deadline, now);
   return left ? `Picks closed · resolves in ${left}` : "Deadline passed";
 }
+
+// invite links. a call link carries the arena's invite code, so opening it also lets you join
+export function arenaInviteUrl(origin: string, inviteCode: string): string {
+  return `${origin}/join/${inviteCode}`;
+}
+export function callInviteUrl(origin: string, callId: string, inviteCode: string): string {
+  return `${origin}/call/${callId}?i=${inviteCode}`;
+}
+
+// a server error's message for the screen. the Firebase SDK tacks the HTTP status
+// on the end ("That invite link doesn't work [404]"), so take that off
+export function errorText(err: unknown, fallback = "Something went wrong"): string {
+  if (!(err instanceof Error) || !err.message) return fallback;
+  return err.message.replace(/\s*\[\d{3}\]$/, "");
+}

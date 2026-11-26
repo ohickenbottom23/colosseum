@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
+import { errorText } from "@/format";
 
 // lets the person a call is about take it down, with a confirm step first.
 // used on the call page and in the "About you" section on home
@@ -28,7 +29,7 @@ export default function TakeDown({
       await httpsCallable(functions, "deleteCall")({ predictionId: callId });
       onDone?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(errorText(err, "Something went wrong"));
       setWorking(false);
     }
   }

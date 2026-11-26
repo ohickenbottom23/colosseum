@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/firebase";
@@ -10,18 +10,29 @@ import SignInButton from "../../SignInButton";
 import ShareButton from "../../ShareButton";
 import TakeDown from "../../TakeDown";
 import { useAuthUser, usePlayer, usePlayers } from "@/hooks";
-import { callText, formatGlory, picksCloseText, resultLine, timeLeft, voidReasonText } from "@/format";
+import { callInviteUrl, callText, formatGlory, picksCloseText, resultLine, timeLeft, voidReasonText, errorText } from "@/format";
 import { canDelete, canResolve, canTakeSide, picksCloseAt, previewIfRight } from "@/lib/resolve";
 import { DAILY_TOKENS, RESOLVE_WINDOW_MS } from "@/lib/constants";
-import { Position, Prediction, Side } from "@/lib/types";
+import { Arena, Position, Prediction, Side } from "@/lib/types";
+
+// the bits of previewInvite's answer this page uses
+type InvitePreview = { arena: { name: string; memberCount: number }; call: { text: string } | null };
 
 export default function CallPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { authUser, loading } = useAuthUser();
+  const inviteCode = useSearchParams().get("i"); // shared links carry the arena's invite code
+  const { authUser, loading, ready } = useAuthUser();
   const uid = authUser?.uid ?? null;
   const players = usePlayers(!!authUser);
   const player = usePlayer(uid);
+
+  // with an invite code we join the arena first, then load the call
+  const [joined, setJoined] = useState(!inviteCode);
+  const [joinError, setJoinError] = useState("");
+  // what a signed out person sees from a shared link, before they join
+  const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
+  const [arena, setArena] = useState<Arena | null>(null);
 
   const [call, setCall] = useState<Prediction | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -38,9 +49,27 @@ export default function CallPage() {
   const [settling, setSettling] = useState(false);
 
 
+  // signed out with an invite: show the arena and the call so they know what they're joining
+  useEffect(() => {
+    if (loading || authUser || !inviteCode) return;
+    httpsCallable<{ code: string; callId: string }, InvitePreview>(functions, "previewInvite")({ code: inviteCode, callId: id })
+      .then((res) => setInvitePreview(res.data))
+      .catch(() => setInvitePreview(null));
+  }, [loading, authUser, inviteCode, id]);
+
+  // signed in with an invite: join the arena (does nothing if you're already in it), then drop
+  // the code from the address bar so a refresh doesn't do it again
+  useEffect(() => {
+    if (!authUser || !ready || !inviteCode || joined) return;
+    httpsCallable(functions, "joinArena")({ code: inviteCode })
+      .then(() => router.replace(`/call/${id}`))
+      .catch((err) => setJoinError(errorText(err, "Couldn't join the arena")))
+      .finally(() => setJoined(true));
+  }, [authUser, ready, inviteCode, joined, id, router]);
+
   // the call itself
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser || !joined) return;
     return onSnapshot(
       doc(db, "predictions", id),
       (snap) => {
@@ -49,23 +78,35 @@ export default function CallPage() {
       },
       () => setNotFound(true)
     );
-  }, [authUser, id]);
+  }, [authUser, id, joined]);
+
+  // the arena it's in, for its name and the invite code in share links
+  const callArenaId = call?.arenaId ?? null;
+  useEffect(() => {
+    if (!callArenaId) return;
+    return onSnapshot(
+      doc(db, "arenas", callArenaId),
+      (snap) => setArena(snap.exists() ? (snap.data() as Arena) : null),
+      () => setArena(null)
+    );
+  }, [callArenaId]);
 
   // everyone who picked a side
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser || !joined) return;
     return onSnapshot(
       collection(db, "predictions", id, "positions"),
       (snap) => setPositions(snap.docs.map((d) => d.data() as Position)),
       () => setPositions([])
     );
-  }, [authUser, id]);
+  }, [authUser, id, joined]);
 
   if (notFound) {
     return (
       <main>
         <Link href="/" className="back">← Back</Link>
-        <p>That call doesn&apos;t exist anymore.</p>
+        {joinError && <p className="error">{joinError}</p>}
+        <p>This call doesn&apos;t exist, or it&apos;s in an arena you&apos;re not in. Ask a friend in it for an invite link.</p>
       </main>
     );
   }
@@ -74,8 +115,21 @@ export default function CallPage() {
     return (
       <main>
         <h1>Colosseum</h1>
-        <p>A friend sent you a call. Sign in to see it and pick a side.</p>
-        <SignInButton />
+        {invitePreview ? (
+          <>
+            <p className="muted">
+              {invitePreview.arena.name} · {invitePreview.arena.memberCount} {invitePreview.arena.memberCount === 1 ? "person" : "people"}
+            </p>
+            {invitePreview.call?.text && <p className="call-big">{invitePreview.call.text}</p>}
+            <p>A friend sent you this call. Join the arena to pick a side.</p>
+            <SignInButton label={`Join ${invitePreview.arena.name} with Google`} />
+          </>
+        ) : (
+          <>
+            <p>A friend sent you a call. Sign in to see it and pick a side.</p>
+            <SignInButton />
+          </>
+        )}
       </main>
     );
   }
@@ -115,7 +169,7 @@ export default function CallPage() {
     try {
       await httpsCallable(functions, "takeSide")({ predictionId: call.id, side, stake: amount });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(errorText(err, "Something went wrong"));
     }
     setSaving(false);
   }
@@ -127,7 +181,7 @@ export default function CallPage() {
     try {
       await httpsCallable(functions, "resolveCall")({ predictionId: call.id, outcome });
     } catch (err) {
-      setSettleError(err instanceof Error ? err.message : "Something went wrong");
+      setSettleError(errorText(err, "Something went wrong"));
     }
     setSettling(false);
     setOutcome(null);
@@ -139,11 +193,13 @@ export default function CallPage() {
 
       <p className={call.text ? "call-big" : "call-big removed"}>{callText(call.text)}</p>
       <p className="call-meta">
-        About {about} · by {nameOf(call.creatorId)}
+        {arena && <>{arena.name} · </>}About {about} · by {nameOf(call.creatorId)}
         {call.status === "open" && <> · {timeLeft(call.deadline, now)}</>}
       </p>
       {call.status === "open" && <p className="closes">{picksCloseText(closeAt, now)}</p>}
-      {call.text && <ShareButton callId={call.id} text={call.text} />}
+      {call.text && arena && (
+        <ShareButton url={callInviteUrl(window.location.origin, call.id, arena.inviteCode)} text={`${call.text}. Pick a side:`} />
+      )}
 
       {/* how it ended */}
       {call.status === "resolved" && (

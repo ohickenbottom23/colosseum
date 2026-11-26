@@ -5,7 +5,7 @@ import Link from "next/link";
 import { signOut } from "firebase/auth";
 import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "@/firebase";
-import { useAuthUser, useMyPositions, usePlayer, usePlayers } from "@/hooks";
+import { useAuthUser, useMyArenas, useMyPositions, usePlayer, usePlayers } from "@/hooks";
 import { formatGlory, resultLine } from "@/format";
 import { Prediction } from "@/lib/types";
 import { picksCloseAt } from "@/lib/resolve";
@@ -13,6 +13,7 @@ import CallCard from "./CallCard";
 import TabBar from "./TabBar";
 import SignInButton from "./SignInButton";
 import AboutYouCard from "./AboutYouCard";
+import NewArenaForm from "./NewArenaForm";
 
 export default function Home() {
   const { authUser, loading, setupError, granted } = useAuthUser();
@@ -20,61 +21,45 @@ export default function Home() {
   const players = usePlayers(!!authUser);
   const player = usePlayer(uid);
   const myPositions = useMyPositions(uid);
+  const arenas = useMyArenas(uid);
   const [calls, setCalls] = useState<Prediction[]>([]);
-  const [myOpenCalls, setMyOpenCalls] = useState<Prediction[]>([]);
   const [finished, setFinished] = useState<Prediction[]>([]);
-  const [aboutMe, setAboutMe] = useState<Prediction[]>([]);
-  // open calls, newest first
+
+  // your arenas, from your own record (the rules check against the same list).
+  // joined into a string so the effects below only rerun when it really changes
+  const arenaKey = (player?.arenaIds ?? []).join(",");
+
+  // open calls from all your arenas, newest first
   useEffect(() => {
-    if (!authUser) {
+    if (!arenaKey) {
       setCalls([]);
       return;
     }
-    const q = query(collection(db, "predictions"), where("status", "==", "open"), orderBy("createdAt", "desc"), limit(50));
+    const q = query(
+      collection(db, "predictions"),
+      where("arenaId", "in", arenaKey.split(",")),
+      where("status", "==", "open"),
+      orderBy("createdAt", "desc"),
+      limit(200)
+    );
     return onSnapshot(
       q,
       (snap) => setCalls(snap.docs.map((d) => d.data() as Prediction)),
       () => setCalls([])
     );
-  }, [authUser]);
+  }, [arenaKey]);
 
-  // calls you made that are still open, so we can nudge you to settle them
+  // calls in your arenas that just finished (settled or voided), newest first.
+  // open calls have no resolvedAt, so "after 0" leaves them out
   useEffect(() => {
-    if (!uid) {
-      setMyOpenCalls([]);
-      return;
-    }
-    const q = query(collection(db, "predictions"), where("creatorId", "==", uid), where("status", "==", "open"));
-    return onSnapshot(
-      q,
-      (snap) => setMyOpenCalls(snap.docs.map((d) => d.data() as Prediction)),
-      () => setMyOpenCalls([])
-    );
-  }, [uid]);
-
-  // open calls about you. being called out is the main reason people open the app
-  useEffect(() => {
-    if (!uid) {
-      setAboutMe([]);
-      return;
-    }
-    const q = query(collection(db, "predictions"), where("subjectId", "==", uid), where("status", "==", "open"));
-    return onSnapshot(
-      q,
-      (snap) => setAboutMe(snap.docs.map((d) => d.data() as Prediction).sort((a, b) => b.createdAt - a.createdAt)),
-      () => setAboutMe([])
-    );
-  }, [uid]);
-
-  // calls that just finished (settled or voided), newest first
-  useEffect(() => {
-    if (!uid) {
+    if (!arenaKey) {
       setFinished([]);
       return;
     }
     const q = query(
       collection(db, "predictions"),
-      where("status", "in", ["resolved", "void"]),
+      where("arenaId", "in", arenaKey.split(",")),
+      where("resolvedAt", ">", 0),
       orderBy("resolvedAt", "desc"),
       limit(30)
     );
@@ -83,7 +68,7 @@ export default function Home() {
       (snap) => setFinished(snap.docs.map((d) => d.data() as Prediction)),
       () => setFinished([])
     );
-  }, [uid]);
+  }, [arenaKey]);
 
   if (loading) return <main><p>Loading...</p></main>;
 
@@ -98,7 +83,12 @@ export default function Home() {
   }
 
   const nameOf = (id: string) => players.find((p) => p.uid === id)?.displayName ?? "Someone";
+  const arenaName = (id: string) => arenas.find((a) => a.id === id)?.name ?? "";
   const now = Date.now();
+
+  // your own open calls, and open calls about you, come out of the same list
+  const myOpenCalls = calls.filter((c) => c.creatorId === authUser.uid);
+  const aboutMe = calls.filter((c) => c.subjectId === authUser.uid);
 
   // your calls past their deadline come first, then ones you can still get in on, then ones you're in
   const needsResult = myOpenCalls.filter((c) => c.deadline <= now).sort((a, b) => a.deadline - b.deadline);
@@ -148,37 +138,54 @@ export default function Home() {
         !setupError && <p>Setting up your account...</p>
       )}
 
+      {/* brand new players need an arena before anything else works */}
+      {player && player.arenaIds?.length === 0 && (
+        <>
+          <h2>Start an arena</h2>
+          <p className="muted">
+            An arena is your friend group. Calls, sides, and the leaderboard all happen inside one. Make one and send
+            the invite link to your group chat, or open an invite link a friend sent you.
+          </p>
+          <NewArenaForm />
+        </>
+      )}
+
       {aboutMe.length > 0 && (
         <>
           <h2>About you</h2>
           <ul className="calls">
             {aboutMe.map((c) => (
-              <AboutYouCard key={c.id} call={c} nameOf={nameOf} mine={myPositions.get(c.id)} now={now} />
+              <AboutYouCard key={c.id} call={c} nameOf={nameOf} arenaName={arenaName(c.arenaId)} mine={myPositions.get(c.id)} now={now} />
             ))}
           </ul>
         </>
       )}
 
-      <Link href="/new" className="button">Make a call</Link>
+      {player && player.arenaIds?.length > 0 && <Link href="/new" className="button">Make a call</Link>}
 
       {needsResult.length > 0 && (
         <>
           <h2>Needs your result</h2>
           <ul className="calls">
             {needsResult.map((c) => (
-              <CallCard key={c.id} call={c} nameOf={nameOf} note="Say what happened" now={now} />
+              <CallCard key={c.id} call={c} nameOf={nameOf} arenaName={arenaName(c.arenaId)} note="Say what happened" now={now} />
             ))}
           </ul>
         </>
       )}
 
-      <h2>Needs your side</h2>
-      {needsSide.length === 0 && <p className="muted">You&apos;re caught up. Make a call to get things going.</p>}
-      <ul className="calls">
-        {needsSide.map((c) => (
-          <CallCard key={c.id} call={c} nameOf={nameOf} now={now} />
-        ))}
-      </ul>
+      {/* with no arena there's nothing to pick a side on yet, so skip this */}
+      {player && player.arenaIds?.length > 0 && (
+        <>
+          <h2>Needs your side</h2>
+          {needsSide.length === 0 && <p className="muted">You&apos;re caught up. Make a call to get things going.</p>}
+          <ul className="calls">
+            {needsSide.map((c) => (
+              <CallCard key={c.id} call={c} nameOf={nameOf} arenaName={arenaName(c.arenaId)} now={now} />
+            ))}
+          </ul>
+        </>
+      )}
 
       {youreIn.length > 0 && (
         <>
@@ -189,6 +196,7 @@ export default function Home() {
                 key={c.id}
                 call={c}
                 nameOf={nameOf}
+                arenaName={arenaName(c.arenaId)}
                 note={`You picked ${myPositions.get(c.id)?.side.toUpperCase()}`}
                 now={now}
               />
@@ -202,7 +210,7 @@ export default function Home() {
           <h2>Recent results</h2>
           <ul className="calls">
             {recent.map((c) => (
-              <CallCard key={c.id} call={c} nameOf={nameOf} note={recentNote(c)} now={now} />
+              <CallCard key={c.id} call={c} nameOf={nameOf} arenaName={arenaName(c.arenaId)} note={recentNote(c)} now={now} />
             ))}
           </ul>
         </>

@@ -1,4 +1,4 @@
-// checks that firestore.rules stops people from cheating.
+// checks that firestore.rules stops people from cheating and keeps arenas private.
 // needs the firestore emulator, so run it with: npm run test:rules
 import { readFileSync } from "fs";
 import { describe, it, beforeAll, beforeEach, afterAll } from "vitest";
@@ -8,7 +8,20 @@ import {
   assertSucceeds,
   RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { collectionGroup, doc, getDoc, getDocs, query, where, setDoc, updateDoc, deleteDoc, setLogLevel } from "firebase/firestore";
+import {
+  arrayUnion,
+  collection,
+  collectionGroup,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  setLogLevel,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 
 // the denied writes are supposed to fail, so don't print a warning for each one
 setLogLevel("error");
@@ -26,11 +39,22 @@ beforeAll(async () => {
   });
 });
 
-// start every test with just maya's record in the database
+// two arenas: maya and jake are in "third", sam is alone in "roommates".
+// each has one open call, and jake and sam have each picked a side on their arena's call
 beforeEach(async () => {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), "users/maya"), { uid: "maya", glory: 100, tokens: 50, wins: 0, calls: 0 });
+    const db = ctx.firestore();
+    const player = (uid: string, arenaIds: string[]) => ({ uid, glory: 100, tokens: 50, wins: 0, calls: 0, arenaIds });
+    await setDoc(doc(db, "users/maya"), player("maya", ["third"]));
+    await setDoc(doc(db, "users/jake"), player("jake", ["third"]));
+    await setDoc(doc(db, "users/sam"), player("sam", ["roommates"]));
+    await setDoc(doc(db, "arenas/third"), { id: "third", name: "Third Floor", memberIds: ["maya", "jake"], inviteCode: "abc" });
+    await setDoc(doc(db, "arenas/roommates"), { id: "roommates", name: "Roommates", memberIds: ["sam"], inviteCode: "xyz" });
+    await setDoc(doc(db, "predictions/p1"), { text: "Jake skips class", creatorId: "maya", status: "open", arenaId: "third" });
+    await setDoc(doc(db, "predictions/p2"), { text: "Sam does laundry", creatorId: "sam", status: "open", arenaId: "roommates" });
+    await setDoc(doc(db, "predictions/p1/positions/jake"), { uid: "jake", predictionId: "p1", arenaId: "third", side: "no", stake: 10 });
+    await setDoc(doc(db, "predictions/p2/positions/sam"), { uid: "sam", predictionId: "p2", arenaId: "roommates", side: "yes", stake: 10 });
   });
 });
 
@@ -62,8 +86,12 @@ describe("users", () => {
     await assertFails(updateDoc(doc(as("maya"), "users/maya"), { lastGrantDate: "2000-01-01" }));
   });
 
+  it("you can't get into an arena by adding it to your own list", async () => {
+    await assertFails(updateDoc(doc(as("maya"), "users/maya"), { arenaIds: arrayUnion("roommates") }));
+  });
+
   it("you can't make your own player record", async () => {
-    await assertFails(setDoc(doc(as("jake"), "users/jake"), { uid: "jake", glory: 9999, tokens: 9999 }));
+    await assertFails(setDoc(doc(as("newbie"), "users/newbie"), { uid: "newbie", glory: 9999, tokens: 9999, arenaIds: ["third"] }));
   });
 
   it("you can't mess with someone else's record", async () => {
@@ -76,45 +104,96 @@ describe("users", () => {
   });
 });
 
-describe("predictions", () => {
-  beforeEach(async () => {
-    await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), "predictions/p1"), { text: "Jake skips class", creatorId: "maya", status: "open" });
-    });
+describe("arenas", () => {
+  it("members can see their arena", async () => {
+    await assertSucceeds(getDoc(doc(as("jake"), "arenas/third")));
   });
 
-  it("signed in players can see calls", async () => {
+  it("you can't see an arena you're not in", async () => {
+    await assertFails(getDoc(doc(as("sam"), "arenas/third")));
+    await assertFails(getDoc(doc(signedOut(), "arenas/third")));
+  });
+
+  it("you can list the arenas you're in", async () => {
+    await assertSucceeds(getDocs(query(collection(as("maya"), "arenas"), where("memberIds", "array-contains", "maya"))));
+  });
+
+  it("you can't list arenas you're not in", async () => {
+    await assertFails(getDocs(query(collection(as("sam"), "arenas"), where("memberIds", "array-contains", "maya"))));
+    await assertFails(getDocs(collection(as("sam"), "arenas")));
+  });
+
+  it("you can't add yourself to an arena or make one directly", async () => {
+    await assertFails(updateDoc(doc(as("sam"), "arenas/third"), { memberIds: arrayUnion("sam") }));
+    await assertFails(setDoc(doc(as("sam"), "arenas/mine"), { name: "Mine", memberIds: ["sam"], inviteCode: "q" }));
+  });
+
+  it("members can't rename the arena or change its invite code directly", async () => {
+    await assertFails(updateDoc(doc(as("maya"), "arenas/third"), { name: "Maya's" }));
+    await assertFails(updateDoc(doc(as("maya"), "arenas/third"), { inviteCode: "new" }));
+  });
+});
+
+describe("predictions", () => {
+  it("members can see calls in their arena", async () => {
     await assertSucceeds(getDoc(doc(as("jake"), "predictions/p1")));
+  });
+
+  it("you can't see a call in an arena you're not in", async () => {
+    await assertFails(getDoc(doc(as("sam"), "predictions/p1")));
   });
 
   it("signed out people can't see calls", async () => {
     await assertFails(getDoc(doc(signedOut(), "predictions/p1")));
   });
 
+  it("home can load open calls from all your arenas at once", async () => {
+    const q = query(collection(as("maya"), "predictions"), where("arenaId", "in", ["third"]), where("status", "==", "open"));
+    await assertSucceeds(getDocs(q));
+  });
+
+  it("you can't sneak another arena into that list", async () => {
+    const q = query(collection(as("maya"), "predictions"), where("arenaId", "in", ["third", "roommates"]));
+    await assertFails(getDocs(q));
+  });
+
+  it("you can't load calls without saying which arenas", async () => {
+    await assertFails(getDocs(query(collection(as("maya"), "predictions"), where("status", "==", "open"))));
+    await assertFails(getDocs(collection(as("maya"), "predictions")));
+  });
+
   it("you can't make a call directly, it has to go through the server", async () => {
-    await assertFails(setDoc(doc(as("maya"), "predictions/p2"), { text: "hi", creatorId: "maya", status: "open" }));
+    await assertFails(setDoc(doc(as("maya"), "predictions/p3"), { text: "hi", creatorId: "maya", status: "open", arenaId: "third" }));
   });
 
   it("not even the creator can edit or delete a call directly", async () => {
     await assertFails(updateDoc(doc(as("maya"), "predictions/p1"), { status: "resolved", outcome: "yes" }));
     await assertFails(deleteDoc(doc(as("maya"), "predictions/p1")));
   });
+
+  it("you can't move a call into another arena", async () => {
+    await assertFails(updateDoc(doc(as("maya"), "predictions/p1"), { arenaId: "roommates" }));
+  });
 });
 
 describe("positions", () => {
-  beforeEach(async () => {
-    await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), "predictions/p1"), { text: "Jake skips class", creatorId: "maya", status: "open" });
-      await setDoc(doc(ctx.firestore(), "predictions/p1/positions/jake"), { uid: "jake", predictionId: "p1", side: "no", stake: 10 });
-    });
-  });
-
-  it("signed in players can see who picked which side", async () => {
+  it("members can see who picked which side", async () => {
     await assertSucceeds(getDoc(doc(as("maya"), "predictions/p1/positions/jake")));
+    await assertSucceeds(getDocs(collection(as("maya"), "predictions/p1/positions")));
   });
 
-  it("you can find all your positions across calls", async () => {
+  it("you can't see sides on a call in an arena you're not in", async () => {
+    await assertFails(getDoc(doc(as("sam"), "predictions/p1/positions/jake")));
+    await assertFails(getDocs(collection(as("sam"), "predictions/p1/positions")));
+  });
+
+  it("you can find all your own positions across calls", async () => {
     await assertSucceeds(getDocs(query(collectionGroup(as("jake"), "positions"), where("uid", "==", "jake"))));
+  });
+
+  it("you can't search for someone else's positions across calls", async () => {
+    await assertFails(getDocs(query(collectionGroup(as("sam"), "positions"), where("uid", "==", "jake"))));
+    await assertFails(getDocs(collectionGroup(as("sam"), "positions")));
   });
 
   it("signed out people can't see positions", async () => {
@@ -122,7 +201,9 @@ describe("positions", () => {
   });
 
   it("you can't pick a side directly and skip paying tokens", async () => {
-    await assertFails(setDoc(doc(as("maya"), "predictions/p1/positions/maya"), { uid: "maya", predictionId: "p1", side: "yes", stake: 10 }));
+    await assertFails(
+      setDoc(doc(as("maya"), "predictions/p1/positions/maya"), { uid: "maya", predictionId: "p1", arenaId: "third", side: "yes", stake: 10 })
+    );
   });
 
   it("you can't sneak in a pick after picks close by writing to Firestore yourself", async () => {
@@ -134,6 +215,7 @@ describe("positions", () => {
         text: "Late call",
         creatorId: "maya",
         status: "open",
+        arenaId: "third",
         createdAt: now - 2 * day,
         deadline: now + day,
       });
@@ -142,6 +224,7 @@ describe("positions", () => {
       setDoc(doc(as("jake"), "predictions/late/positions/jake"), {
         uid: "jake",
         predictionId: "late",
+        arenaId: "third",
         side: "no",
         stake: 10,
         createdAt: now,

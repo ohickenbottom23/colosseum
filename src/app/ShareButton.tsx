@@ -2,17 +2,15 @@
 
 import { useState } from "react";
 
-// opens the phone's share sheet with a link to the call, so it can go in a group chat.
+// opens the phone's share sheet with a link, so it can go in a group chat.
 // browsers without a share sheet just copy the link
-export default function ShareButton({ callId, text }: { callId: string; text: string }) {
+export default function ShareButton({ url, text, label = "Share" }: { url: string; text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 
   async function share() {
-    const url = `${window.location.origin}/call/${callId}`;
-
     if (navigator.share) {
       try {
-        await navigator.share({ title: "Colosseum", text: `${text}. Pick a side:`, url });
+        await navigator.share({ title: "Colosseum", text, url });
       } catch {
         // they closed the share sheet, that's fine
       }
@@ -31,7 +29,7 @@ export default function ShareButton({ callId, text }: { callId: string; text: st
 
   return (
     <button type="button" className="chip share" onClick={share}>
-      {copied ? "Link copied" : "Share"}
+      {copied ? "Link copied" : label}
     </button>
   );
 }

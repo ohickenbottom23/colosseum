@@ -5,7 +5,7 @@ import { onAuthStateChanged, User as AuthUser } from "firebase/auth";
 import { collection, collectionGroup, doc, onSnapshot, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "@/firebase";
-import { Position, User } from "@/lib/types";
+import { Arena, Position, User } from "@/lib/types";
 
 // who's signed in. also makes sure their player record exists, and picks up today's tokens
 export function useAuthUser() {
@@ -13,25 +13,28 @@ export function useAuthUser() {
   const [loading, setLoading] = useState(true);
   const [setupError, setSetupError] = useState("");
   const [granted, setGranted] = useState(0); // tokens they just got for today
+  const [ready, setReady] = useState(false); // their player record is set up, so arena stuff can start
 
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
       setAuthUser(u);
       setLoading(false);
+      setReady(false);
       if (u) {
         // the phone's timezone decides when their day starts. the server double checks it
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         httpsCallable<{ timeZone: string }, { granted: number }>(functions, "ensureUser")({ timeZone })
           .then((res) => setGranted(res.data.granted))
-          .catch(() => setSetupError("Couldn't set up your account. Try again."));
+          .catch(() => setSetupError("Couldn't set up your account. Try again."))
+          .finally(() => setReady(true));
       }
     });
   }, []);
 
-  return { authUser, loading, setupError, granted };
+  return { authUser, loading, setupError, granted, ready };
 }
 
-// every player. fine while it's just friends, will need groups later
+// every player. used to look up names and faces. arena pages filter it down to their members
 export function usePlayers(signedIn: boolean) {
   const [players, setPlayers] = useState<User[]>([]);
 
@@ -84,4 +87,24 @@ export function useMyPositions(uid: string | null) {
   }, [uid]);
 
   return positions;
+}
+
+// the arenas you're in, by name
+export function useMyArenas(uid: string | null) {
+  const [arenas, setArenas] = useState<Arena[]>([]);
+
+  useEffect(() => {
+    if (!uid) {
+      setArenas([]);
+      return;
+    }
+    const q = query(collection(db, "arenas"), where("memberIds", "array-contains", uid));
+    return onSnapshot(
+      q,
+      (snap) => setArenas(snap.docs.map((d) => d.data() as Arena).sort((a, b) => a.name.localeCompare(b.name))),
+      () => setArenas([])
+    );
+  }, [uid]);
+
+  return arenas;
 }

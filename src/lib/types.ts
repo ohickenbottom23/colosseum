@@ -1,6 +1,6 @@
 // Firestore layout
 // users/{uid}
-// groups/{groupId}
+// arenas/{arenaId}
 // predictions/{predictionId}
 // predictions/{predictionId}/positions/{uid}
 
@@ -28,19 +28,20 @@ export interface User {
   wins: number;
   calls: number; // resolved calls they took a side on
   missedResolves: number; // reliability hit for letting calls void
-  friendIds: string[];
+  arenaIds: string[]; // arenas they're in. only Cloud Functions change this, the rules read it
   lastGrantDate: string; // "2026-11-20" in their timezone, for the daily token grant
   timeZone: string; // like "America/Chicago", decides when their day starts
   timeZoneChangedAt: number; // so they can only switch once a week
   createdAt: number;
 }
 
-export interface Group {
+// a group of friends. every call belongs to one arena, and only its members can see it
+export interface Arena {
   id: string;
   name: string;
   ownerId: string;
   memberIds: string[];
-  inviteCode: string;
+  inviteCode: string; // goes in invite links. any member can share it
   createdAt: number;
 }
 
@@ -50,7 +51,7 @@ export interface Prediction {
   creatorId: string;
   subjectId: string | null; // uid if it's about a person, null if it's about anything else
   subjectLabel: string | null; // what to show when subjectId is null, like "the weather"
-  groupId: string | null; // null means all of the creator's friends can see it
+  arenaId: string; // the arena it was posted to
   deadline: number;
   status: PredictionStatus;
   outcome: Side | null;
@@ -62,6 +63,7 @@ export interface Prediction {
 export interface Position {
   uid: string;
   predictionId: string; // so we can find all of someone's positions in one query
+  arenaId: string; // copied from the call so the rules can check membership cheaply
   side: Side;
   stake: number;
   createdAt: number;

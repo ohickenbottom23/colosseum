@@ -7,11 +7,13 @@ import { Prediction } from "@/lib/types";
 export default function CallCard({
   call,
   nameOf,
+  arenaName,
   note,
   now,
 }: {
   call: Prediction;
   nameOf: (uid: string) => string;
+  arenaName: string;
   note?: string; // an extra gold line, like "You picked NO"
   now: number;
 }) {
@@ -25,7 +27,7 @@ export default function CallCard({
       <Link href={`/call/${call.id}`} className="call">
         <p className={call.text ? "call-text" : "call-text removed"}>{callText(call.text)}</p>
         <p className="call-meta">
-          About {about} · by {nameOf(call.creatorId)}
+          {arenaName && <>{arenaName} · </>}About {about} · by {nameOf(call.creatorId)}
           {call.status === "open" && <> · {when}</>}
         </p>
         {note && <p className="call-mine">{note}</p>}
