@@ -220,10 +220,10 @@ export default function NewCallPage() {
         <div className="field">
           <span>Your side</span>
           <div className="chips">
-            <button type="button" className={side === "yes" ? "chip big on" : "chip big"} onClick={() => { setSide("yes"); setError(""); }}>
+            <button type="button" className={side === "yes" ? "chip big yes on" : "chip big yes"} onClick={() => { setSide("yes"); setError(""); }}>
               Yes
             </button>
-            <button type="button" className={side === "no" ? "chip big on" : "chip big"} onClick={() => { setSide("no"); setError(""); }}>
+            <button type="button" className={side === "no" ? "chip big no on" : "chip big no"} onClick={() => { setSide("no"); setError(""); }}>
               No
             </button>
           </div>
@@ -261,7 +261,7 @@ export default function NewCallPage() {
 
         {error && <p className="error">{error}</p>}
 
-        <button type="submit" disabled={posting || player?.tokens === 0 || arenas.length === 0}>
+        <button type="submit" className="main" disabled={posting || player?.tokens === 0 || arenas.length === 0}>
           {posting ? "Posting..." : side ? `Post and back ${side.toUpperCase()}` : "Post call"}
         </button>
         <p className="muted small">If nobody else picks a side, it won&apos;t count and you get your tokens back.</p>

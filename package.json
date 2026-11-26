@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "emulators": "npm --prefix functions run build && firebase emulators:start --project demo-colosseum",
+    "emulators": "npm --prefix functions run build && firebase emulators:start --project demo-colosseum --import=./.emulator-data --export-on-exit",
     "test": "vitest run src",
     "test:rules": "firebase emulators:exec --only firestore --project demo-colosseum \"vitest run tests/firestore.rules\"",
     "test:functions": "npm --prefix functions run build && firebase emulators:exec --only auth,firestore,functions --project demo-colosseum \"vitest run tests/functions.emulator\""

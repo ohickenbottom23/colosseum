@@ -1,7 +1,20 @@
+/* ---------- colors ----------
+   gold is ONLY for Glory, ranks, the wordmark, and the one main button on a screen.
+   YES is always blue and NO is always orange, with dark text on both. */
 :root {
-  --garnet: #73000a;
+  --garnet: #73000a; /* page background */
+  --garnet-deep: #5a0008; /* panels and the nav */
+  --panel-border: #8a2a2f;
+  --cream: #f7f0e3; /* cards, and text on garnet */
+  --cream-muted: rgba(247, 240, 227, 0.7); /* quieter text on garnet */
+  --ink: #2a0a0c; /* text on cream cards */
+  --muted: #6b4e4a; /* quieter text on cream cards */
   --gold: #c9a227;
-  --cream: #f6efe0;
+  --yes: #5b8fc7;
+  --no: #f2a65a;
+  --on-side: #1b1410; /* text on YES and NO */
+  --error-on-garnet: #ffb4b4;
+  --error-on-cream: #a3001a;
 }
 
 * {
@@ -22,92 +35,47 @@ main {
   padding: 48px 16px;
 }
 
+/* ---------- type ----------
+   Anton for the wordmark, rank names, and big numbers. Inter for everything else. */
 h1 {
   font-family: var(--font-anton), Impact, sans-serif;
   font-weight: 400;
+  font-size: 48px;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--cream);
+  margin: 0 0 16px;
+}
+
+h1.wordmark {
   font-size: 56px;
-  letter-spacing: 1px;
+  color: var(--gold);
+}
+
+/* section labels: Inter 800, 12px, spaced out, all caps */
+h2,
+.label,
+.field > span {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--gold);
-  margin: 0 0 12px;
-}
-
-button {
-  width: 100%;
-  padding: 14px 20px;
-  font-family: inherit;
-  font-size: 16px;
-  font-weight: 600;
-  border: none;
-  border-radius: 10px;
-  background: var(--gold);
-  color: var(--garnet);
-  cursor: pointer;
-}
-
-button.secondary {
-  background: transparent;
-  color: var(--gold);
-  border: 2px solid var(--gold);
-}
-
-.stats {
-  display: flex;
-  gap: 12px;
-  margin: 24px 0;
-}
-
-.stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 16px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.stat-number {
-  font-family: var(--font-anton), Impact, sans-serif;
-  font-size: 40px;
-  color: var(--gold);
-}
-
-.stat-label {
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  opacity: 0.8;
-}
-
-.error {
-  color: #ffb4b4;
+  color: var(--cream);
 }
 
 h2 {
+  margin: 28px 0 10px;
+}
+
+.big-number {
   font-family: var(--font-anton), Impact, sans-serif;
   font-weight: 400;
-  font-size: 24px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--gold);
-  margin: 32px 0 12px;
 }
 
 a {
-  color: var(--gold);
-}
-
-/* a link that looks like the main button */
-a.button {
-  display: block;
-  text-align: center;
-  text-decoration: none;
-  padding: 14px 20px;
-  font-size: 16px;
-  font-weight: 600;
-  border-radius: 10px;
-  background: var(--gold);
-  color: var(--garnet);
+  color: var(--cream);
 }
 
 a.back {
@@ -116,43 +84,136 @@ a.back {
   text-decoration: none;
 }
 
+.muted {
+  color: var(--cream-muted);
+}
+
+.error {
+  color: var(--error-on-garnet);
+}
+
+.small {
+  font-size: 13px;
+  text-align: center;
+  margin: 0;
+}
+
+/* ---------- buttons ----------
+   plain buttons are cream. the one main button on a screen is gold (.main, or a.button) */
+button {
+  width: 100%;
+  padding: 14px 20px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  border: none;
+  border-radius: 10px;
+  background: var(--cream);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+button.main,
+a.button {
+  background: var(--gold);
+  color: var(--ink);
+}
+
+a.button {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  padding: 14px 20px;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 10px;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--cream);
+  border: 2px solid var(--cream-muted);
+}
+
 button:disabled {
   opacity: 0.6;
 }
 
-.muted {
-  opacity: 0.7;
-}
-
-/* list of calls on the home screen */
-.calls {
-  list-style: none;
+/* looks like a plain link, on purpose so it's not a big scary button */
+button.link-button {
+  width: auto;
   padding: 0;
-  margin: 0 0 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.call {
-  padding: 14px 16px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.2);
-}
-
-.call-text {
-  margin: 0 0 6px;
-  font-size: 17px;
-  font-weight: 600;
-}
-
-.call-meta {
-  margin: 0;
+  background: none;
+  color: var(--cream-muted);
   font-size: 14px;
-  opacity: 0.75;
+  font-weight: 600;
+  text-decoration: underline;
 }
 
-/* make a call form */
+/* chips: outlined, cream when picked. YES and NO chips use their side's color */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button.chip {
+  width: auto;
+  padding: 8px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--cream);
+  border: 2px solid rgba(247, 240, 227, 0.35);
+}
+
+button.chip.on {
+  background: var(--cream);
+  color: var(--ink);
+  border-color: var(--cream);
+}
+
+button.chip.big {
+  flex: 1;
+  padding: 14px;
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-weight: 400;
+  font-size: 22px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+button.chip.yes {
+  border-color: var(--yes);
+}
+
+button.chip.no {
+  border-color: var(--no);
+}
+
+button.chip.yes.on {
+  background: var(--yes);
+  color: var(--on-side);
+}
+
+button.chip.no.on {
+  background: var(--no);
+  color: var(--on-side);
+}
+
+button.chip.share {
+  margin: 10px 0 0;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* next to the "Picks close" pill */
+.closes + button.chip.share {
+  margin-left: 6px;
+}
+
+/* ---------- forms ---------- */
 .form {
   display: flex;
   flex-direction: column;
@@ -165,14 +226,6 @@ button:disabled {
   gap: 8px;
 }
 
-.field > span {
-  font-size: 14px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--gold);
-}
-
 textarea,
 input,
 select {
@@ -183,115 +236,206 @@ select {
   border: 2px solid transparent;
   border-radius: 10px;
   background: var(--cream);
-  color: #1a1a1a;
+  color: var(--ink);
 }
 
 textarea:focus,
 input:focus,
 select:focus {
   outline: none;
-  border-color: var(--gold);
+  border-color: var(--yes);
 }
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-button.chip {
-  width: auto;
-  padding: 8px 14px;
-  font-size: 15px;
-  font-weight: 500;
-  background: transparent;
+/* ---------- panels (deep garnet) and cards (cream) ---------- */
+.panel,
+.stat,
+.side-list,
+.banner,
+.picked {
+  background: var(--garnet-deep);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
   color: var(--cream);
-  border: 2px solid rgba(246, 239, 224, 0.4);
 }
 
-button.chip.on {
-  background: var(--gold);
-  color: var(--garnet);
-  border-color: var(--gold);
+.card,
+.call,
+.row,
+.estimate,
+.result {
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: 14px;
 }
 
-/* cards are links now */
-a.call {
-  display: block;
-  color: inherit;
-  text-decoration: none;
+/* inside cream cards, quiet text and errors need darker colors */
+.call .muted,
+.row .muted,
+.estimate .muted,
+.result .muted {
+  color: var(--muted);
 }
 
-.call-mine {
-  margin: 6px 0 0;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 1px;
+.call .error,
+.estimate .error {
+  color: var(--error-on-cream);
+}
+
+/* glory on garnet is gold. on a cream card gold is too faint, so it's garnet there */
+.glory {
   color: var(--gold);
 }
 
-/* call page */
-.call-big {
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1.3;
-  margin: 0 0 8px;
+.card .glory,
+.row .glory,
+.estimate .glory,
+.result .glory {
+  color: var(--garnet);
 }
 
-.sides {
+/* ---------- home ---------- */
+.stats {
   display: flex;
   gap: 12px;
   margin: 24px 0;
 }
 
-.side-list {
+.stat {
   flex: 1;
-  padding: 14px 16px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
 }
 
-.side-list h3 {
-  margin: 0 0 8px;
+.stat-number {
   font-family: var(--font-anton), Impact, sans-serif;
-  font-weight: 400;
-  font-size: 20px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--gold);
+  font-size: 40px;
 }
 
-.side-list p {
-  margin: 4px 0;
-  font-size: 15px;
+.stat-label {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--cream-muted);
+}
+
+.explainer {
+  margin: -12px 0 20px;
+  font-size: 14px;
+  color: var(--cream-muted);
+}
+
+/* "+50 tokens for today" */
+.banner {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* lists of calls */
+.calls {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.call {
+  padding: 14px 16px;
+}
+
+/* cards are links. links are cream by default, so set the card's ink color again */
+a.call,
+a.plain-link {
+  display: block;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.call-top {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.call-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.call-text {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.call-meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.call-mine {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--garnet);
+}
+
+/* a call the person it was about took down */
+.removed {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* ---------- call page ---------- */
+.call-big {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0 0 8px;
+}
+
+/* on the call page the meta sits on garnet, not a card */
+main > .call-meta {
+  color: var(--cream-muted);
+}
+
+/* "Picks close in 2 days" */
+.closes {
+  display: inline-block;
+  margin: 10px 0 0;
+  padding: 4px 10px;
+  border: 1.5px solid var(--cream-muted);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cream);
+}
+
+.sides {
+  margin: 24px 0;
+  padding: 16px;
+}
+
+.side-faces {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
 }
 
 .picked {
   padding: 14px 16px;
-  border-radius: 12px;
-  border: 2px solid var(--gold);
-}
-
-button.chip.big {
-  flex: 1;
-  padding: 14px;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.small {
-  font-size: 13px;
-  text-align: center;
-  margin: 0;
 }
 
 /* how a call ended */
 .result {
   margin: 20px 0;
   padding: 16px;
-  border-radius: 12px;
-  background: var(--gold);
-  color: var(--garnet);
 }
 
 .result h3 {
@@ -299,7 +443,7 @@ button.chip.big {
   font-family: var(--font-anton), Impact, sans-serif;
   font-weight: 400;
   font-size: 26px;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
 }
 
@@ -312,18 +456,39 @@ button.chip.big {
   margin-top: 8px;
 }
 
-/* "+50 tokens for today" */
-.banner {
-  margin: 0 0 16px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: var(--gold);
-  color: var(--garnet);
-  font-weight: 700;
-  text-align: center;
+/* "if you're right" estimate */
+.estimate {
+  padding: 12px 14px;
 }
 
-/* room at the bottom so the tab bar never covers anything */
+.estimate p {
+  margin: 0;
+}
+
+.small-left {
+  margin-top: 4px !important;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.takedown {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--panel-border);
+}
+
+/* inside a card the take-down doesn't need the big gap */
+.call .takedown {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top-color: rgba(42, 10, 12, 0.15);
+}
+
+.call .link-button {
+  color: var(--muted);
+}
+
+/* ---------- tab bar ---------- */
 main.with-tabs {
   padding-bottom: calc(96px + env(safe-area-inset-bottom));
 }
@@ -337,8 +502,8 @@ main.with-tabs {
   justify-content: center;
   gap: 8px;
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
-  background: #5a0008; /* a bit darker than the page */
-  border-top: 1px solid rgba(201, 162, 39, 0.3);
+  background: var(--garnet-deep);
+  border-top: 1px solid var(--panel-border);
 }
 
 .tab {
@@ -348,18 +513,16 @@ main.with-tabs {
   border-radius: 10px;
   text-align: center;
   text-decoration: none;
-  font-weight: 600;
-  color: var(--cream);
-  opacity: 0.75;
+  font-weight: 700;
+  color: var(--cream-muted);
 }
 
 .tab.on {
-  color: var(--gold);
+  color: var(--cream);
   background: rgba(0, 0, 0, 0.2);
-  opacity: 1;
 }
 
-/* leaderboard */
+/* ---------- leaderboard ---------- */
 .board {
   list-style: none;
   padding: 0;
@@ -372,28 +535,25 @@ main.with-tabs {
 .row {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 12px 16px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 2px solid transparent;
 }
 
+/* your own row gets an outline drawn inside the card, so nothing shifts */
 .row.me {
-  border-color: var(--gold);
+  box-shadow: inset 0 0 0 2px var(--garnet);
 }
 
 .row-rank {
-  width: 28px;
+  width: 24px;
   font-family: var(--font-anton), Impact, sans-serif;
   font-size: 22px;
-  color: var(--gold);
   text-align: center;
 }
 
 .row-main {
   flex: 1;
-  min-width: 0; /* lets long names get cut off instead of pushing the score off screen */
+  min-width: 0; /* lets long names get cut off instead of pushing glory off screen */
 }
 
 .row-name {
@@ -407,71 +567,7 @@ main.with-tabs {
 .row-meta {
   margin: 2px 0 0;
   font-size: 13px;
-  opacity: 0.75;
-}
-
-.row-score {
-  font-family: var(--font-anton), Impact, sans-serif;
-  font-size: 30px;
-  color: var(--gold);
-}
-
-/* a call the person it was about took down */
-.removed {
-  font-style: italic;
-  opacity: 0.7;
-}
-
-.takedown {
-  margin-top: 40px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(246, 239, 224, 0.15);
-}
-
-/* looks like a plain link, on purpose so it's not a big scary button */
-button.link-button {
-  width: auto;
-  padding: 0;
-  background: none;
-  color: var(--cream);
-  opacity: 0.7;
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: underline;
-}
-
-.closes {
-  margin: 6px 0 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--gold);
-}
-
-button.chip.share {
-  margin-top: 12px;
-}
-
-/* "if you're right" estimate */
-.estimate {
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 2px dashed rgba(201, 162, 39, 0.6);
-}
-
-.estimate p {
-  margin: 0;
-}
-
-.small-left {
-  margin-top: 4px !important;
-  font-size: 13px;
-  opacity: 0.75;
-}
-
-.explainer {
-  margin: -12px 0 20px;
-  font-size: 14px;
-  opacity: 0.8;
+  color: var(--muted);
 }
 
 .row-glory {
@@ -480,24 +576,18 @@ button.chip.share {
   align-items: flex-end;
 }
 
+.row-score {
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-size: 28px;
+  line-height: 1;
+}
+
 .row-glory-label {
   font-size: 11px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  opacity: 0.7;
-}
-
-/* the tappable part of a card that also has buttons in it */
-a.plain-link {
-  display: block;
-  color: inherit;
-  text-decoration: none;
-}
-
-/* inside a card the take-down doesn't need the big gap */
-.call .takedown {
-  margin-top: 10px;
-  padding-top: 10px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
 }
 
 /* arena picker on the leaderboard */
@@ -513,4 +603,133 @@ a.plain-link {
 
 .new-arena {
   margin-top: 32px;
+}
+
+/* ---------- pieces: Avatar, AvatarStack, SplitBar, RankShield, RankBar ---------- */
+.avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  overflow: hidden;
+  color: var(--cream);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* faces overlap a little, with a ring so each one stands out */
+.avatar-stack {
+  display: flex;
+  align-items: center;
+}
+
+.avatar-stack .avatar {
+  box-shadow: 0 0 0 2px var(--ring, var(--garnet-deep));
+}
+
+.avatar-stack .avatar + .avatar {
+  margin-left: -8px;
+}
+
+.avatar-more {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+/* YES vs NO. the labels sit on top of the bar */
+.split {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.split-heads {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-size: 30px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.split-heads .yes {
+  color: var(--yes);
+}
+
+.split-heads .no {
+  color: var(--no);
+}
+
+.split-bar {
+  position: relative;
+  display: flex;
+  height: 26px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(128, 112, 108, 0.3); /* the empty track, shows on both cream and garnet */
+}
+
+.split.big .split-bar {
+  height: 14px;
+}
+
+.split-bar .seg-yes {
+  background: var(--yes);
+}
+
+.split-bar .seg-no {
+  background: var(--no);
+}
+
+.split-labels {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--on-side);
+}
+
+/* shield with a roman numeral */
+.shield {
+  flex: none;
+  display: inline-block;
+}
+
+/* five segments, one per rank */
+.rank-bar {
+  display: flex;
+  gap: 4px;
+}
+
+.rank-seg {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(247, 240, 227, 0.2);
+  overflow: hidden;
+}
+
+.rank-seg .fill {
+  height: 100%;
+  background: var(--gold);
+}
+
+/* on the line: the rank you're holding onto is dashed */
+.rank-seg.line {
+  background: transparent;
+  border: 1.5px dashed var(--gold);
 }

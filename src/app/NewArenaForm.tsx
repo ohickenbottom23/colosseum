@@ -8,7 +8,7 @@ import { MAX_ARENA_NAME } from "@/lib/constants";
 import { errorText } from "@/format";
 
 // name a new arena and make it. you're its first member
-export default function NewArenaForm({ onMade }: { onMade?: (arenaId: string) => void }) {
+export default function NewArenaForm({ onMade, main = false }: { onMade?: (arenaId: string) => void; main?: boolean }) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [making, setMaking] = useState(false);
@@ -39,7 +39,7 @@ export default function NewArenaForm({ onMade }: { onMade?: (arenaId: string) =>
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={MAX_ARENA_NAME} placeholder="Third Floor" />
       </label>
       {error && <p className="error">{error}</p>}
-      <button type="submit" disabled={making}>{making ? "Making it..." : "Make the arena"}</button>
+      <button type="submit" className={main ? "main" : undefined} disabled={making}>{making ? "Making it..." : "Make the arena"}</button>
     </form>
   );
 }

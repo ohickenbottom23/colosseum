@@ -14,6 +14,7 @@ import TabBar from "./TabBar";
 import SignInButton from "./SignInButton";
 import AboutYouCard from "./AboutYouCard";
 import NewArenaForm from "./NewArenaForm";
+import { faceOf } from "./ui/Avatar";
 
 export default function Home() {
   const { authUser, loading, setupError, granted } = useAuthUser();
@@ -75,7 +76,7 @@ export default function Home() {
   if (!authUser) {
     return (
       <main>
-        <h1>Colosseum</h1>
+        <h1 className="wordmark">Colosseum</h1>
         <p>Call it. Get proven right in front of your friends.</p>
         <SignInButton />
       </main>
@@ -84,6 +85,7 @@ export default function Home() {
 
   const nameOf = (id: string) => players.find((p) => p.uid === id)?.displayName ?? "Someone";
   const arenaName = (id: string) => arenas.find((a) => a.id === id)?.name ?? "";
+  const faceFor = (id: string) => faceOf(id, players);
   const now = Date.now();
 
   // your own open calls, and open calls about you, come out of the same list
@@ -115,7 +117,7 @@ export default function Home() {
 
   return (
     <main className="with-tabs">
-      <h1>Colosseum</h1>
+      <h1 className="wordmark">Colosseum</h1>
 
       {setupError && <p className="error">{setupError}</p>}
       {granted > 0 && <p className="banner">+{granted} tokens for today</p>}
@@ -124,7 +126,7 @@ export default function Home() {
         <>
         <div className="stats">
           <div className="stat">
-            <span className="stat-number">{formatGlory(player.glory)}</span>
+            <span className="stat-number glory">{formatGlory(player.glory)}</span>
             <span className="stat-label">Glory</span>
           </div>
           <div className="stat">
@@ -146,7 +148,7 @@ export default function Home() {
             An arena is your friend group. Calls, sides, and the leaderboard all happen inside one. Make one and send
             the invite link to your group chat, or open an invite link a friend sent you.
           </p>
-          <NewArenaForm />
+          <NewArenaForm main />
         </>
       )}
 
@@ -168,7 +170,7 @@ export default function Home() {
           <h2>Needs your result</h2>
           <ul className="calls">
             {needsResult.map((c) => (
-              <CallCard key={c.id} call={c} nameOf={nameOf} arenaName={arenaName(c.arenaId)} note="Say what happened" now={now} />
+              <CallCard key={c.id} call={c} nameOf={nameOf} faceFor={faceFor} arenaName={arenaName(c.arenaId)} note="Say what happened" now={now} />
             ))}
           </ul>
         </>
@@ -181,7 +183,7 @@ export default function Home() {
           {needsSide.length === 0 && <p className="muted">You&apos;re caught up. Make a call to get things going.</p>}
           <ul className="calls">
             {needsSide.map((c) => (
-              <CallCard key={c.id} call={c} nameOf={nameOf} arenaName={arenaName(c.arenaId)} now={now} />
+              <CallCard key={c.id} call={c} nameOf={nameOf} faceFor={faceFor} arenaName={arenaName(c.arenaId)} now={now} />
             ))}
           </ul>
         </>
@@ -196,6 +198,7 @@ export default function Home() {
                 key={c.id}
                 call={c}
                 nameOf={nameOf}
+                faceFor={faceFor}
                 arenaName={arenaName(c.arenaId)}
                 note={`You picked ${myPositions.get(c.id)?.side.toUpperCase()}`}
                 now={now}
@@ -210,7 +213,7 @@ export default function Home() {
           <h2>Recent results</h2>
           <ul className="calls">
             {recent.map((c) => (
-              <CallCard key={c.id} call={c} nameOf={nameOf} arenaName={arenaName(c.arenaId)} note={recentNote(c)} now={now} />
+              <CallCard key={c.id} call={c} nameOf={nameOf} faceFor={faceFor} arenaName={arenaName(c.arenaId)} note={recentNote(c)} now={now} />
             ))}
           </ul>
         </>

@@ -26,7 +26,7 @@ export default function SignInButton({ label = "Sign in with Google" }: { label?
 
   return (
     <>
-      <button onClick={signIn} disabled={signingIn}>
+      <button className="main" onClick={signIn} disabled={signingIn}>
         {signingIn ? "Signing in..." : label}
       </button>
       {error && <p className="error">{error}</p>}

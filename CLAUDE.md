@@ -87,9 +87,25 @@ Not yet: activity feed, notifications, streaks, seasons, any monetization.
 ## Brand
 
 - Name is Colosseum (two s's, "eu")
-- Garnet #73000A and gold #C9A227. Gold on garnet for the main look.
-- Anton for the wordmark and big headings, Inter for everything else
 - Mobile first. Almost everyone will use this on a phone.
+
+Colors (CSS variables in `src/app/globals.css`, use the variables, not raw hex)
+- Garnet #73000A page background, deep garnet #5A0008 for panels and the nav, panel border #8A2A2F
+- Cream #F7F0E3 for cards, ink #2A0A0C for card text, muted #6B4E4A for quiet card text
+- Gold #C9A227 ONLY for Glory, ranks, the wordmark, and the one main button on a screen (`button.main` or `a.button`). Nothing else: not headings, labels, chips, links, banners, or tabs.
+- On cream cards Glory is garnet instead of gold, because gold on cream is too faint to read
+- YES is #5B8FC7 and NO is #F2A65A everywhere, with #1B1410 text on both
+
+Type
+- Anton for the wordmark, rank names, and big numbers. Inter for everything else.
+- Section labels (`h2`, `.label`, form field labels) are Inter 800, 12px, letterspaced, all caps
+
+Pieces (in `src/app/ui/`, reuse these instead of rebuilding them)
+- `Avatar`: Google profile photo, falling back to initials on a colored circle (the color comes from the uid)
+- `AvatarStack`: overlapping faces with "+N"
+- `SplitBar`: YES vs NO, split by tokens on each side, with each side's multiplier
+- `RankShield`: shield with a Roman numeral, dashed when on the line
+- `RankBar`: 5 segments, one per rank, the next one filling up
 
 ## More background
 

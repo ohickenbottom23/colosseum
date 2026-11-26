@@ -32,6 +32,8 @@ npm run dev         # terminal 2, app at localhost:3000
 
 Sign in with Google shows the emulator's fake account picker, so you can make as many test users as you want.
 
+The emulators save their data to `.emulator-data/` when you stop them with Ctrl+C, and load it next time, so your test accounts and calls stick around. Killing the terminal some other way skips the save. To start over with an empty database, stop the emulators and delete that folder. `npm run test:rules` and `npm run test:functions` always use their own empty emulators.
+
 ## Tests
 
 ```

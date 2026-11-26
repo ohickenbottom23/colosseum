@@ -8,6 +8,7 @@ import { rankPlayers } from "@/lib/glory";
 import TabBar from "../TabBar";
 import ShareButton from "../ShareButton";
 import NewArenaForm from "../NewArenaForm";
+import Avatar from "../ui/Avatar";
 
 export default function LeaderboardPage() {
   const router = useRouter();
@@ -75,6 +76,7 @@ export default function LeaderboardPage() {
         {ranked.map((r) => (
           <li key={r.user.uid} className={r.user.uid === authUser.uid ? "row me" : "row"}>
             <span className="row-rank">{r.rank}</span>
+            <Avatar face={{ uid: r.user.uid, name: r.user.displayName, photoURL: r.user.photoURL }} />
             <div className="row-main">
               <p className="row-name">{r.user.displayName}</p>
               <p className="row-meta">
@@ -83,7 +85,7 @@ export default function LeaderboardPage() {
             </div>
             {/* the score decides the order, but we show glory since that's what people know */}
             <div className="row-glory">
-              <span className="row-score">{formatGlory(r.user.glory)}</span>
+              <span className="row-score glory">{formatGlory(r.user.glory)}</span>
               <span className="row-glory-label">Glory</span>
             </div>
           </li>
@@ -96,6 +98,7 @@ export default function LeaderboardPage() {
           <ul className="board">
             {notPlayed.map((u) => (
               <li key={u.uid} className={u.uid === authUser.uid ? "row me" : "row"}>
+                <Avatar face={{ uid: u.uid, name: u.displayName, photoURL: u.photoURL }} />
                 <div className="row-main">
                   <p className="row-name">{u.displayName}</p>
                 </div>

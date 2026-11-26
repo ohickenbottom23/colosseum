@@ -9,6 +9,9 @@ import { db, functions } from "@/firebase";
 import SignInButton from "../../SignInButton";
 import ShareButton from "../../ShareButton";
 import TakeDown from "../../TakeDown";
+import SplitBar from "../../ui/SplitBar";
+import AvatarStack from "../../ui/AvatarStack";
+import { faceOf } from "../../ui/Avatar";
 import { useAuthUser, usePlayer, usePlayers } from "@/hooks";
 import { callInviteUrl, callText, formatGlory, picksCloseText, resultLine, timeLeft, voidReasonText, errorText } from "@/format";
 import { canDelete, canResolve, canTakeSide, picksCloseAt, previewIfRight } from "@/lib/resolve";
@@ -114,7 +117,7 @@ export default function CallPage() {
   if (!loading && !authUser) {
     return (
       <main>
-        <h1>Colosseum</h1>
+        <h1 className="wordmark">Colosseum</h1>
         {invitePreview ? (
           <>
             <p className="muted">
@@ -220,14 +223,17 @@ export default function CallPage() {
       )}
 
       {/* who's on each side. stakes stay private */}
-      <div className="sides">
-        <div className="side-list">
-          <h3>Yes · {yes.length}</h3>
-          {yes.map((p) => <p key={p.uid}>{nameOf(p.uid)}</p>)}
-        </div>
-        <div className="side-list">
-          <h3>No · {no.length}</h3>
-          {no.map((p) => <p key={p.uid}>{nameOf(p.uid)}</p>)}
+      <div className="panel sides">
+        <SplitBar
+          big
+          yesCount={yes.length}
+          noCount={no.length}
+          yesTokens={yes.reduce((sum, p) => sum + p.stake, 0)}
+          noTokens={no.reduce((sum, p) => sum + p.stake, 0)}
+        />
+        <div className="side-faces">
+          <AvatarStack faces={yes.map((p) => faceOf(p.uid, players))} max={6} />
+          <AvatarStack faces={no.map((p) => faceOf(p.uid, players))} max={6} />
         </div>
       </div>
 
@@ -238,8 +244,8 @@ export default function CallPage() {
             <span>What happened? {timeLeft(call.deadline + RESOLVE_WINDOW_MS, now)} to settle</span>
             {!outcome ? (
               <div className="chips">
-                <button type="button" className="chip big" onClick={() => setOutcome("yes")}>Yes</button>
-                <button type="button" className="chip big" onClick={() => setOutcome("no")}>No</button>
+                <button type="button" className="chip big yes" onClick={() => setOutcome("yes")}>Yes</button>
+                <button type="button" className="chip big no" onClick={() => setOutcome("no")}>No</button>
               </div>
             ) : (
               <>
@@ -247,7 +253,7 @@ export default function CallPage() {
                   Settle this as <strong>{outcome.toUpperCase()}</strong>? Glory and tokens update for everyone right
                   away, and you can&apos;t undo it.
                 </p>
-                <button onClick={settleIt} disabled={settling}>
+                <button className="main" onClick={settleIt} disabled={settling}>
                   {settling ? "Settling..." : `Settle as ${outcome.toUpperCase()}`}
                 </button>
                 <button className="secondary" onClick={() => setOutcome(null)} disabled={settling}>
@@ -285,10 +291,10 @@ export default function CallPage() {
           <div className="field">
             <span>Pick a side</span>
             <div className="chips">
-              <button type="button" className={side === "yes" ? "chip big on" : "chip big"} onClick={() => setSide("yes")}>
+              <button type="button" className={side === "yes" ? "chip big yes on" : "chip big yes"} onClick={() => setSide("yes")}>
                 Yes
               </button>
-              <button type="button" className={side === "no" ? "chip big on" : "chip big"} onClick={() => setSide("no")}>
+              <button type="button" className={side === "no" ? "chip big no on" : "chip big no"} onClick={() => setSide("no")}>
                 No
               </button>
             </div>
@@ -330,7 +336,7 @@ export default function CallPage() {
 
           {error && <p className="error">{error}</p>}
 
-          <button onClick={backIt} disabled={!side || !stake || saving}>
+          <button className="main" onClick={backIt} disabled={!side || !stake || saving}>
             {saving ? "Saving..." : side ? `Back ${side.toUpperCase()}` : "Back it"}
           </button>
           <p className="muted small">You can&apos;t switch sides once you pick.</p>

@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { onAuthStateChanged, User as AuthUser } from "firebase/auth";
+import { onAuthStateChanged, signOut, User as AuthUser } from "firebase/auth";
 import { collection, collectionGroup, doc, onSnapshot, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "@/firebase";
 import { Arena, Position, User } from "@/lib/types";
+
+// errors that mean the saved sign-in is dead (the account is gone, or the session was revoked).
+// Firebase keeps the user "signed in" anyway, so every read fails until we sign out ourselves.
+// on the emulators this happens after a restart, since that wipes every account
+const DEAD_SESSION = ["auth/invalid-refresh-token", "auth/user-token-expired", "auth/user-not-found", "auth/user-disabled"];
 
 // who's signed in. also makes sure their player record exists, and picks up today's tokens
 export function useAuthUser() {
@@ -21,12 +26,21 @@ export function useAuthUser() {
       setLoading(false);
       setReady(false);
       if (u) {
-        // the phone's timezone decides when their day starts. the server double checks it
-        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        httpsCallable<{ timeZone: string }, { granted: number }>(functions, "ensureUser")({ timeZone })
-          .then((res) => setGranted(res.data.granted))
-          .catch(() => setSetupError("Couldn't set up your account. Try again."))
-          .finally(() => setReady(true));
+        // check the saved sign-in still works before using it. if it's dead, sign out so they
+        // see the sign in button instead of a home screen where nothing loads
+        u.getIdToken(true)
+          .then(() => {
+            // the phone's timezone decides when their day starts. the server double checks it
+            const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            return httpsCallable<{ timeZone: string }, { granted: number }>(functions, "ensureUser")({ timeZone })
+              .then((res) => setGranted(res.data.granted))
+              .catch(() => setSetupError("Couldn't set up your account. Try again."))
+              .finally(() => setReady(true));
+          })
+          .catch((err) => {
+            if (DEAD_SESSION.includes((err as { code?: string }).code ?? "")) signOut(auth);
+            else setSetupError("Couldn't reach the server. Check your connection and try again.");
+          });
       }
     });
   }, []);

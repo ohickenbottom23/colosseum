@@ -38,7 +38,7 @@ export default function JoinPage() {
   if (error) {
     return (
       <main>
-        <h1>Colosseum</h1>
+        <h1 className="wordmark">Colosseum</h1>
         <p className="error">{error}</p>
         <Link href="/" className="back">Go home</Link>
       </main>
@@ -49,7 +49,7 @@ export default function JoinPage() {
 
   return (
     <main>
-      <h1>Colosseum</h1>
+      <h1 className="wordmark">Colosseum</h1>
       <p className="call-big">{preview.arena.name}</p>
       <p className="muted">
         Arena · {preview.arena.memberCount} {preview.arena.memberCount === 1 ? "person" : "people"}
