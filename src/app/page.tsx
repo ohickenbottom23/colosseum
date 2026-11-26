@@ -1,21 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "@/firebase";
-import { useAuthUser, useMyArenas, useMyPositions, usePlayer, usePlayers } from "@/hooks";
-import { formatGlory, resultLine } from "@/format";
+import { useAuthUser, useCallPositions, useMyArenas, useMyPositions, usePlayer, usePlayers, useSeenResults } from "@/hooks";
+import { resultLine } from "@/format";
 import { Prediction } from "@/lib/types";
 import { picksCloseAt } from "@/lib/resolve";
 import CallCard from "./CallCard";
+import CalledOutCard from "./CalledOutCard";
 import TabBar from "./TabBar";
 import SignInButton from "./SignInButton";
-import AboutYouCard from "./AboutYouCard";
-import RankStrip from "./RankStrip";
 import NewArenaForm from "./NewArenaForm";
-import { faceOf } from "./ui/Avatar";
+import RankStrip from "./RankStrip";
+import Avatar, { faceOf } from "./ui/Avatar";
 
 export default function Home() {
   const { authUser, loading, setupError, granted } = useAuthUser();
@@ -26,6 +26,9 @@ export default function Home() {
   const arenas = useMyArenas(uid);
   const [calls, setCalls] = useState<Prediction[]>([]);
   const [finished, setFinished] = useState<Prediction[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const router = useRouter();
+  const seen = useSeenResults(uid);
 
   // your arenas, from your own record (the rules check against the same list).
   // joined into a string so the effects below only rerun when it really changes
@@ -72,6 +75,25 @@ export default function Home() {
     );
   }, [arenaKey]);
 
+  // finished calls you played in or made (only the latest few)
+  const recent = authUser ? finished.filter((c) => myPositions.has(c.id) || c.creatorId === authUser.uid).slice(0, 10) : [];
+
+  // a call you were in just got settled and you haven't seen how it went: show the result screen.
+  // one at a time, newest first, and only from the last week so old ones don't pile up
+  const unseenResult = seen
+    ? finished.find((c) => {
+        const mine = myPositions.get(c.id);
+        return c.status === "resolved" && mine?.rankResult && !seen.has(c.id) && (c.resolvedAt ?? 0) > Date.now() - 7 * 24 * 60 * 60 * 1000;
+      })
+    : undefined;
+  const unseenId = unseenResult?.id;
+  useEffect(() => {
+    if (unseenId) router.push(`/result/${unseenId}`);
+  }, [unseenId, router]);
+
+  // who picked what on every call on this screen, for the split bars and faces
+  const positionsByCall = useCallPositions([...calls, ...recent].map((c) => c.id));
+
   if (loading) return <main><p>Loading...</p></main>;
 
   if (!authUser) {
@@ -88,21 +110,28 @@ export default function Home() {
   const arenaName = (id: string) => arenas.find((a) => a.id === id)?.name ?? "";
   const faceFor = (id: string) => faceOf(id, players);
   const now = Date.now();
+  const hasArenas = !!player && player.arenaIds?.length > 0;
 
-  // your own open calls, and open calls about you, come out of the same list
-  const myOpenCalls = calls.filter((c) => c.creatorId === authUser.uid);
+  // calls about you come first. being called out is the main reason people open the app
   const aboutMe = calls.filter((c) => c.subjectId === authUser.uid);
+  // your own calls past their deadline, waiting for you to say what happened
+  const needsResult = calls
+    .filter((c) => c.creatorId === authUser.uid && c.deadline <= now && c.subjectId !== authUser.uid)
+    .sort((a, b) => a.deadline - b.deadline);
+  const shownAbove = new Set([...aboutMe, ...needsResult].map((c) => c.id));
 
-  // your calls past their deadline come first, then ones you can still get in on, then ones you're in
-  const needsResult = myOpenCalls.filter((c) => c.deadline <= now).sort((a, b) => a.deadline - b.deadline);
-  const needsResultIds = new Set(needsResult.map((c) => c.id));
-  // calls about you get their own section at the top, so leave them out of the others
-  const aboutMeIds = new Set(aboutMe.map((c) => c.id));
-  const needsSide = calls.filter((c) => !myPositions.has(c.id) && now < picksCloseAt(c) && !aboutMeIds.has(c.id));
-  const youreIn = calls.filter((c) => myPositions.has(c.id) && !needsResultIds.has(c.id) && !aboutMeIds.has(c.id));
+  // everything else that's open: ones still waiting on your side first, then the rest
+  const needsSide = (c: Prediction) => !myPositions.has(c.id) && now < picksCloseAt(c);
+  const openCalls = calls
+    .filter((c) => !shownAbove.has(c.id))
+    .sort((a, b) => Number(needsSide(b)) - Number(needsSide(a)) || b.createdAt - a.createdAt);
 
-  // finished calls you played in or made
-  const recent = finished.filter((c) => myPositions.has(c.id) || c.creatorId === authUser.uid).slice(0, 10);
+  function openNote(c: Prediction): string | undefined {
+    const mine = myPositions.get(c.id);
+    if (mine) return `You picked ${mine.side.toUpperCase()}`;
+    if (now >= c.deadline) return `Waiting on ${nameOf(c.creatorId)} to say what happened`;
+    return undefined;
+  }
 
   // what to say under a finished call
   function recentNote(c: Prediction): string {
@@ -116,34 +145,52 @@ export default function Home() {
     return `Result: ${c.outcome?.toUpperCase()}`;
   }
 
+  const card = (c: Prediction, note?: string) => (
+    <CallCard
+      key={c.id}
+      call={c}
+      positions={positionsByCall[c.id] ?? []}
+      nameOf={nameOf}
+      faceFor={faceFor}
+      arenaName={arenaName(c.arenaId)}
+      note={note}
+      now={now}
+    />
+  );
+
   return (
     <main className="with-tabs">
-      <h1 className="wordmark">Colosseum</h1>
+      <header className="home-header">
+        <h1 className="wordmark small">Colosseum</h1>
+        {player && <span className="token-chip">{player.tokens} tokens</span>}
+        <div className="me-menu">
+          <button type="button" className="me-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Your account">
+            <Avatar face={faceFor(authUser.uid)} size={36} />
+          </button>
+          {menuOpen && (
+            <div className="menu panel">
+              <p className="menu-name">{player?.displayName}</p>
+              <button type="button" className="secondary" onClick={() => signOut(auth)}>
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
 
       {setupError && <p className="error">{setupError}</p>}
       {granted > 0 && <p className="banner">+{granted} tokens for today</p>}
+      {!player && !setupError && <p className="muted">Setting up your account...</p>}
 
-      {player ? (
+      {player && (
         <>
-        <RankStrip player={player} />
-        <div className="stats">
-          <div className="stat">
-            <span className="stat-number glory">{formatGlory(player.glory)}</span>
-            <span className="stat-label">Glory</span>
-          </div>
-          <div className="stat">
-            <span className="stat-number">{player.tokens}</span>
-            <span className="stat-label">Tokens</span>
-          </div>
-        </div>
-        <p className="explainer">Tokens are what you put behind a call. Glory is your record for being right.</p>
+          <RankStrip player={player} />
+          <p className="explainer">Tokens are what you put behind a call. Glory is your record for being right.</p>
         </>
-      ) : (
-        !setupError && <p>Setting up your account...</p>
       )}
 
       {/* brand new players need an arena before anything else works */}
-      {player && player.arenaIds?.length === 0 && (
+      {player && !hasArenas && (
         <>
           <h2>Start an arena</h2>
           <p className="muted">
@@ -155,73 +202,42 @@ export default function Home() {
       )}
 
       {aboutMe.length > 0 && (
-        <>
-          <h2>About you</h2>
-          <ul className="calls">
-            {aboutMe.map((c) => (
-              <AboutYouCard key={c.id} call={c} nameOf={nameOf} arenaName={arenaName(c.arenaId)} mine={myPositions.get(c.id)} now={now} />
-            ))}
-          </ul>
-        </>
+        <ul className="calls">
+          {aboutMe.map((c) => (
+            <CalledOutCard
+              key={c.id}
+              call={c}
+              positions={positionsByCall[c.id] ?? []}
+              myUid={authUser.uid}
+              nameOf={nameOf}
+              faceFor={faceFor}
+              now={now}
+            />
+          ))}
+        </ul>
       )}
-
-      {player && player.arenaIds?.length > 0 && <Link href="/new" className="button">Make a call</Link>}
 
       {needsResult.length > 0 && (
         <>
           <h2>Needs your result</h2>
-          <ul className="calls">
-            {needsResult.map((c) => (
-              <CallCard key={c.id} call={c} nameOf={nameOf} faceFor={faceFor} arenaName={arenaName(c.arenaId)} note="Say what happened" now={now} />
-            ))}
-          </ul>
+          <ul className="calls">{needsResult.map((c) => card(c, "Deadline's up. Say what happened"))}</ul>
         </>
       )}
 
-      {/* with no arena there's nothing to pick a side on yet, so skip this */}
-      {player && player.arenaIds?.length > 0 && (
+      {hasArenas && (
         <>
-          <h2>Needs your side</h2>
-          {needsSide.length === 0 && <p className="muted">You&apos;re caught up. Make a call to get things going.</p>}
-          <ul className="calls">
-            {needsSide.map((c) => (
-              <CallCard key={c.id} call={c} nameOf={nameOf} faceFor={faceFor} arenaName={arenaName(c.arenaId)} now={now} />
-            ))}
-          </ul>
-        </>
-      )}
-
-      {youreIn.length > 0 && (
-        <>
-          <h2>You&apos;re in</h2>
-          <ul className="calls">
-            {youreIn.map((c) => (
-              <CallCard
-                key={c.id}
-                call={c}
-                nameOf={nameOf}
-                faceFor={faceFor}
-                arenaName={arenaName(c.arenaId)}
-                note={`You picked ${myPositions.get(c.id)?.side.toUpperCase()}`}
-                now={now}
-              />
-            ))}
-          </ul>
+          <h2>Open calls</h2>
+          {openCalls.length === 0 && <p className="muted">Nothing open right now. Tap + to make a call.</p>}
+          <ul className="calls">{openCalls.map((c) => card(c, openNote(c)))}</ul>
         </>
       )}
 
       {recent.length > 0 && (
         <>
           <h2>Recent results</h2>
-          <ul className="calls">
-            {recent.map((c) => (
-              <CallCard key={c.id} call={c} nameOf={nameOf} faceFor={faceFor} arenaName={arenaName(c.arenaId)} note={recentNote(c)} now={now} />
-            ))}
-          </ul>
+          <ul className="calls">{recent.map((c) => card(c, recentNote(c)))}</ul>
         </>
       )}
-
-      <button className="secondary" onClick={() => signOut(auth)}>Sign out</button>
 
       <TabBar />
     </main>

@@ -17,6 +17,13 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if signedIn();
       allow write: if false;
+
+      // which result screens you've already seen, so each one only shows once.
+      // only you can read or add to your own list, and it doesn't touch glory or tokens
+      match /seen/{callId} {
+        allow read, create: if signedIn() && request.auth.uid == uid;
+        allow update, delete: if false;
+      }
     }
 
     // you can see arenas you're in. making and joining them goes through Cloud Functions

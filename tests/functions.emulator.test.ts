@@ -297,6 +297,8 @@ describe("ranks move when a call is settled", { timeout: 60000 }, () => {
     expect(Number(r.before.integerValue)).toBe(1);
     expect(Number(r.after.integerValue)).toBe(2);
     expect(r.onTheLine.booleanValue).toBe(false);
+    expect(Number(r.gloryBefore.doubleValue ?? r.gloryBefore.integerValue)).toBe(148);
+    expect(Number(r.gloryAfter.doubleValue ?? r.gloryAfter.integerValue)).toBe(208);
   });
 
   it("a loss under the floor puts you on the line, and the next loss drops you", async () => {

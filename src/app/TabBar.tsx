@@ -2,23 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { HomeIcon, PlusIcon, TrophyIcon } from "./ui/Icons";
 
-const TABS = [
-  { href: "/", label: "Home" },
-  { href: "/leaderboard", label: "Leaderboard" },
-];
-
-// the bar along the bottom of the screen on the main pages
+// the bar along the bottom of the main pages: Home, a gold + to make a call, and Leaderboard.
+// the + is the main button on these screens, so it's the gold one
 export default function TabBar() {
   const path = usePathname();
 
   return (
     <nav className="tabbar">
-      {TABS.map((tab) => (
-        <Link key={tab.href} href={tab.href} className={path === tab.href ? "tab on" : "tab"}>
-          {tab.label}
-        </Link>
-      ))}
+      <Link href="/" className={path === "/" ? "tab on" : "tab"}>
+        <HomeIcon />
+        <span>Home</span>
+      </Link>
+      <Link href="/new" className="make-call" aria-label="Make a call">
+        <PlusIcon />
+      </Link>
+      <Link href="/leaderboard" className={path === "/leaderboard" ? "tab on" : "tab"}>
+        <TrophyIcon />
+        <span>Leaderboard</span>
+      </Link>
     </nav>
   );
 }

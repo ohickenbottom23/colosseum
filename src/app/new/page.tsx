@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
 import { useAuthUser, useMyArenas, usePlayer, usePlayers } from "@/hooks";
@@ -10,7 +10,10 @@ import { DeadlinePreset, deadlineFromPreset, NewCall, validateNewCall } from "@/
 import { DAILY_TOKENS, MAX_CALL_TEXT, MAX_LABEL } from "@/lib/constants";
 import { canTakeSide } from "@/lib/resolve";
 import { Prediction, Side } from "@/lib/types";
-import { errorText } from "@/format";
+import { callInviteUrl, dayAndTime, errorText } from "@/format";
+import NewArenaForm from "../NewArenaForm";
+import Avatar from "../ui/Avatar";
+import { CloseIcon, PlusIcon } from "../ui/Icons";
 
 const PRESETS: { value: DeadlinePreset; label: string }[] = [
   { value: "tonight", label: "Tonight" },
@@ -19,22 +22,34 @@ const PRESETS: { value: DeadlinePreset; label: string }[] = [
   { value: "custom", label: "Pick a date" },
 ];
 
+// reading ?arena= and ?about= needs a Suspense wrapper, or Next can't build this page ahead of time
 export default function NewCallPage() {
+  return (
+    <Suspense fallback={<main><p>Loading...</p></main>}>
+      <NewCallForm />
+    </Suspense>
+  );
+}
+
+function NewCallForm() {
   const router = useRouter();
+  const params = useSearchParams();
   const { authUser, loading } = useAuthUser();
   const players = usePlayers(!!authUser);
   const player = usePlayer(authUser?.uid ?? null);
   const arenas = useMyArenas(authUser?.uid ?? null);
-  const [arenaId, setArenaId] = useState("");
 
+  // "Call them out" on the leaderboard opens this with the arena and person filled in
+  const [arenaId, setArenaId] = useState(params.get("arena") ?? "");
+  const [subjectId, setSubjectId] = useState(params.get("about") ?? ""); // "" = nobody yet, "other" = a label
+  const [makingArena, setMakingArena] = useState(false);
   const [text, setText] = useState("");
-  const [aboutFriend, setAboutFriend] = useState(true);
-  const [subjectId, setSubjectId] = useState("");
   const [label, setLabel] = useState("");
   const [preset, setPreset] = useState<DeadlinePreset>("week");
   const [customDate, setCustomDate] = useState("");
   const [side, setSide] = useState<Side | null>(null);
   const [stake, setStake] = useState("");
+  const [shareAfter, setShareAfter] = useState(true);
   const [error, setError] = useState("");
   const [posting, setPosting] = useState(false);
 
@@ -53,8 +68,17 @@ export default function NewCallPage() {
 
   function pickArena(id: string) {
     setArenaId(id);
-    setSubjectId(""); // the person you picked might not be in the new arena
+    setMakingArena(false);
+    if (subjectId !== "other") setSubjectId(""); // the person you picked might not be in the new arena
   }
+
+  // when picks would close if you posted right now: halfway to the deadline
+  const now = Date.now();
+  const deadline = preset === "custom" && !customDate ? NaN : deadlineFromPreset(preset, new Date(now), customDate);
+  const closeAt = now + (deadline - now) / 2;
+
+  const tokens = player?.tokens ?? 0;
+  const stakeChoices = [...new Set([10, 25, 50].filter((n) => n < tokens).concat(tokens > 0 ? [tokens] : []))];
 
   async function post(e: React.FormEvent) {
     e.preventDefault();
@@ -65,7 +89,6 @@ export default function NewCallPage() {
       setError("Pick an arena");
       return;
     }
-
     if (preset === "custom" && !customDate) {
       setError("Pick a date");
       return;
@@ -73,8 +96,8 @@ export default function NewCallPage() {
 
     const call: NewCall = {
       text,
-      subjectId: aboutFriend ? subjectId || null : null,
-      subjectLabel: aboutFriend ? null : label,
+      subjectId: subjectId && subjectId !== "other" ? subjectId : null,
+      subjectLabel: subjectId === "other" ? label : null,
       deadline: deadlineFromPreset(preset, new Date(), customDate),
     };
 
@@ -115,12 +138,35 @@ export default function NewCallPage() {
     }
 
     setPosting(true);
+    let id: string;
     try {
-      await httpsCallable(functions, "createCall")({ ...call, arenaId: arena.id, side, stake: amount });
-      router.push("/");
+      const res = await httpsCallable<object, { id: string }>(functions, "createCall")({ ...call, arenaId: arena.id, side, stake: amount });
+      id = res.data.id;
     } catch (err) {
       setError(errorText(err, "Something went wrong"));
       setPosting(false);
+      return;
+    }
+
+    if (!shareAfter) {
+      router.push(`/call/${id}`);
+      return;
+    }
+
+    // phones only open the share sheet right after a tap. we just waited on the server, so it
+    // might refuse. if it does (or there's no share sheet), the call page shows a share button
+    const url = callInviteUrl(window.location.origin, id, arena.inviteCode);
+    if (!navigator.share) {
+      router.push(`/call/${id}?share=1`);
+      return;
+    }
+    try {
+      await navigator.share({ title: "Colosseum", text: `${call.text.trim()}. Pick a side:`, url });
+      router.push(`/call/${id}`);
+    } catch (err) {
+      // closing the share sheet yourself is fine. anything else means it never opened
+      const cancelled = err instanceof DOMException && err.name === "AbortError";
+      router.push(cancelled ? `/call/${id}` : `/call/${id}?share=1`);
     }
   }
 
@@ -130,8 +176,12 @@ export default function NewCallPage() {
 
   return (
     <main>
-      <Link href="/" className="back">← Back</Link>
-      <h1>Make a call</h1>
+      <div className="title-bar">
+        <h1>Make a call</h1>
+        <Link href="/" className="icon-link" aria-label="Close">
+          <CloseIcon />
+        </Link>
+      </div>
 
       {arenas.length === 0 && (
         <p className="muted">
@@ -141,24 +191,6 @@ export default function NewCallPage() {
       )}
 
       <form onSubmit={post} className="form">
-        {arenas.length > 1 && (
-          <div className="field">
-            <span>Which arena?</span>
-            <div className="chips">
-              {arenas.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  className={a.id === arena?.id ? "chip on" : "chip"}
-                  onClick={() => pickArena(a.id)}
-                >
-                  {a.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         <label className="field">
           <span>What&apos;s your call?</span>
           <textarea
@@ -166,29 +198,54 @@ export default function NewCallPage() {
             onChange={(e) => setText(e.target.value)}
             maxLength={MAX_CALL_TEXT}
             rows={3}
-            placeholder="Jake makes it to his 8am every day this week"
+            placeholder="Sam finally does his laundry this week"
           />
         </label>
 
         <div className="field">
-          <span>It&apos;s about</span>
+          <span>Which arena?</span>
           <div className="chips">
-            <button type="button" className={aboutFriend ? "chip on" : "chip"} onClick={() => setAboutFriend(true)}>
-              A friend
-            </button>
-            <button type="button" className={!aboutFriend ? "chip on" : "chip"} onClick={() => setAboutFriend(false)}>
-              Something else
+            {arenas.map((a) => (
+              <button key={a.id} type="button" className={a.id === arena?.id ? "chip on" : "chip"} onClick={() => pickArena(a.id)}>
+                {a.name}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="chip add-chip"
+              onClick={() => setMakingArena(!makingArena)}
+              aria-label="New arena"
+            >
+              <PlusIcon size={18} />
             </button>
           </div>
+          {makingArena && <NewArenaForm onMade={pickArena} />}
+        </div>
 
-          {aboutFriend ? (
-            <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
-              <option value="">Pick a friend</option>
-              {friends.map((p) => (
-                <option key={p.uid} value={p.uid}>{p.displayName}</option>
-              ))}
-            </select>
-          ) : (
+        <div className="field">
+          <span>Who&apos;s it about?</span>
+          <div className="face-picker">
+            {friends.map((p) => (
+              <button
+                key={p.uid}
+                type="button"
+                className={subjectId === p.uid ? "face-choice on" : "face-choice"}
+                onClick={() => setSubjectId(p.uid)}
+              >
+                <Avatar face={{ uid: p.uid, name: p.displayName, photoURL: p.photoURL }} size={52} />
+                <span>{p.displayName.split(" ")[0]}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              className={subjectId === "other" ? "face-choice other on" : "face-choice other"}
+              onClick={() => setSubjectId("other")}
+            >
+              <span className="other-circle">···</span>
+              <span>Other</span>
+            </button>
+          </div>
+          {subjectId === "other" && (
             <input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
@@ -199,7 +256,7 @@ export default function NewCallPage() {
         </div>
 
         <div className="field">
-          <span>Deadline</span>
+          <span>When does it settle?</span>
           <div className="chips">
             {PRESETS.map((p) => (
               <button
@@ -230,7 +287,16 @@ export default function NewCallPage() {
         </div>
 
         <div className="field">
-          <span>How many tokens? You have {player?.tokens ?? "..."}</span>
+          <span>How sure are you? · {player?.tokens ?? "..."} tokens</span>
+          {tokens > 0 && (
+            <div className="stake-chips">
+              {stakeChoices.map((n) => (
+                <button key={n} type="button" className={stake === String(n) ? "chip on" : "chip"} onClick={() => setStake(String(n))}>
+                  {n === tokens ? `All ${n}` : n}
+                </button>
+              ))}
+            </div>
+          )}
           <input
             type="number"
             inputMode="numeric"
@@ -239,21 +305,15 @@ export default function NewCallPage() {
             step={1}
             value={stake}
             onChange={(e) => setStake(e.target.value)}
-            placeholder="10"
+            placeholder="Or type an amount"
+            aria-label="Tokens"
           />
-          {player && player.tokens > 0 && (
-            <div className="chips">
-              {[10, 25].filter((n) => n < player.tokens).map((n) => (
-                <button key={n} type="button" className="chip" onClick={() => setStake(String(n))}>
-                  {n}
-                </button>
-              ))}
-              <button type="button" className="chip" onClick={() => setStake(String(player.tokens))}>
-                Max ({player.tokens})
-              </button>
-            </div>
-          )}
         </div>
+
+        <label className="check">
+          <input type="checkbox" checked={shareAfter} onChange={(e) => setShareAfter(e.target.checked)} />
+          <span>Send it to the group chat after I post</span>
+        </label>
 
         {player?.tokens === 0 && (
           <p className="muted">You need at least 1 token to back a call. You get {DAILY_TOKENS} more tomorrow.</p>
@@ -262,9 +322,12 @@ export default function NewCallPage() {
         {error && <p className="error">{error}</p>}
 
         <button type="submit" className="main" disabled={posting || player?.tokens === 0 || arenas.length === 0}>
-          {posting ? "Posting..." : side ? `Post and back ${side.toUpperCase()}` : "Post call"}
+          {posting ? "Posting..." : "Post call"}
         </button>
-        <p className="muted small">If nobody else picks a side, it won&apos;t count and you get your tokens back.</p>
+        <p className="muted small">
+          {Number.isFinite(closeAt) ? `Picks close halfway, ${dayAndTime(closeAt, now)}` : "Picks close halfway to the deadline"}.
+          If nobody else picks a side, it won&apos;t count and you get your tokens back.
+        </p>
       </form>
     </main>
   );

@@ -78,6 +78,7 @@ export interface RankResult {
   before: number; // tier before
   after: number; // tier after
   onTheLine: boolean; // after
+  gloryBefore: number; // so the result screen shows the real change (the floor can make it smaller)
   gloryAfter: number;
 }
 

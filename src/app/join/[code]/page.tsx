@@ -6,8 +6,9 @@ import { useParams, useRouter } from "next/navigation";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
 import { useAuthUser } from "@/hooks";
-import SignInButton from "../../SignInButton";
 import { errorText } from "@/format";
+import SignInButton from "../../SignInButton";
+import InviteSteps from "../../InviteSteps";
 
 type ArenaPreview = { arena: { name: string; memberCount: number } };
 
@@ -37,25 +38,26 @@ export default function JoinPage() {
 
   if (error) {
     return (
-      <main>
+      <main className="invite">
         <h1 className="wordmark">Colosseum</h1>
         <p className="error">{error}</p>
-        <Link href="/" className="back">Go home</Link>
+        <Link href="/">Go home</Link>
       </main>
     );
   }
 
   if (loading || !preview || authUser) return <main><p>Loading...</p></main>;
 
+  const people = `${preview.arena.memberCount} ${preview.arena.memberCount === 1 ? "person" : "people"}`;
+
   return (
-    <main>
+    <main className="invite">
       <h1 className="wordmark">Colosseum</h1>
-      <p className="call-big">{preview.arena.name}</p>
-      <p className="muted">
-        Arena · {preview.arena.memberCount} {preview.arena.memberCount === 1 ? "person" : "people"}
-      </p>
-      <p>Friends make calls about each other, pick a side, and earn Glory for being right.</p>
+      <p className="arena-tag">Arena · {people}</p>
+      <p className="invite-arena-name">{preview.arena.name}</p>
+      <p className="invite-hook">Your friends are making calls about each other. Get in and pick a side.</p>
       <SignInButton label={`Join ${preview.arena.name} with Google`} />
+      <InviteSteps />
     </main>
   );
 }

@@ -321,7 +321,7 @@ select:focus {
 }
 
 .explainer {
-  margin: -12px 0 20px;
+  margin: 0 0 20px;
   font-size: 14px;
   color: var(--cream-muted);
 }
@@ -852,5 +852,780 @@ a.rank-strip {
   margin: 0;
   font-size: 12px;
   font-weight: 700;
+  color: var(--cream-muted);
+}
+
+/* ---------- phase 4 screens ---------- */
+
+/* bottom nav: Home, the gold +, Leaderboard */
+.tabbar {
+  align-items: center;
+  gap: 0;
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+  font-size: 12px;
+  background: none !important;
+}
+
+.make-call {
+  flex: none;
+  width: 60px;
+  height: 60px;
+  margin: -30px 18px 0; /* sits up out of the bar */
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gold);
+  color: var(--ink);
+  box-shadow: 0 0 0 5px var(--garnet-deep), 0 6px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* home header: wordmark, tokens, you */
+.home-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -24px 0 16px;
+}
+
+h1.wordmark.small {
+  flex: 1;
+  margin: 0;
+  font-size: 34px;
+}
+
+.token-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--garnet-deep);
+  border: 1px solid var(--panel-border);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.me-menu {
+  position: relative;
+}
+
+button.me-button {
+  width: auto;
+  padding: 0;
+  background: none;
+  border-radius: 50%;
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: 44px;
+  z-index: 10;
+  width: 200px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.menu-name {
+  margin: 0;
+  font-weight: 700;
+}
+
+/* call cards on home */
+.call {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+a.call {
+  display: flex;
+}
+
+.call-people {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 24px;
+}
+
+.call-people-no {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+/* "Called out": a call about you */
+.called-out .plain-link {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.called-out-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.called-out-label {
+  margin: 0;
+  font-size: 11px;
+  color: var(--garnet);
+}
+
+.called-out-who {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.called-out-left {
+  align-self: flex-start;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.called-out-text {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.called-out-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.called-out-actions .call-mine {
+  margin: 0;
+}
+
+a.prove-button {
+  padding: 12px 20px;
+  border-radius: 10px;
+  background: var(--garnet);
+  color: var(--cream);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+/* the take-down link sits next to the button, its confirm drops below */
+.called-out-actions .takedown {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.called-out-actions:has(.takedown .form) {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* call page top: back arrow and share */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: -24px 0 20px;
+}
+
+a.icon-link {
+  display: inline-flex;
+  padding: 6px;
+  margin-left: -6px;
+  color: var(--cream);
+}
+
+button.share-top {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cream);
+  border: 2px solid var(--cream-muted);
+  font-size: 15px;
+}
+
+button.main {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.call-who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.call-who p {
+  margin: 0;
+}
+
+.call-who-about {
+  font-weight: 800;
+}
+
+.call-who-by {
+  font-size: 14px;
+  color: var(--cream-muted);
+}
+
+.call-when {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.call-when .closes {
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  border-color: var(--cream);
+}
+
+.settles {
+  font-size: 14px;
+  color: var(--cream-muted);
+}
+
+.just-posted {
+  margin: 16px 0 0;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.just-posted p {
+  margin: 0;
+}
+
+/* stake chips fill the row like the mockup */
+.stake-chips {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.stake-chips button.chip {
+  width: 100%;
+  padding: 12px 4px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+/* make a call */
+.title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-top: -16px;
+}
+
+.title-bar .icon-link {
+  margin: 4px -6px 0 0;
+}
+
+button.chip.add-chip {
+  width: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-style: dashed;
+  border-radius: 50%;
+}
+
+.face-picker {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 2px 6px;
+}
+
+button.face-choice {
+  width: auto;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: none;
+  color: var(--cream);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* the picked face gets a cream ring */
+button.face-choice .avatar {
+  box-shadow: 0 0 0 3px transparent;
+}
+
+button.face-choice.on .avatar,
+button.face-choice.on .other-circle {
+  box-shadow: 0 0 0 3px var(--cream);
+}
+
+.other-circle {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px dashed var(--cream-muted);
+  font-size: 18px;
+}
+
+label.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+label.check input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--yes);
+}
+
+/* leaderboard */
+.arena-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.arena-pill select {
+  width: auto;
+  padding: 8px 32px 8px 16px;
+  border-radius: 999px;
+  border: 2px solid var(--cream-muted);
+  background: transparent;
+  color: var(--cream);
+  font-weight: 800;
+  appearance: none;
+  /* a small down arrow, since appearance: none hides the browser's own */
+  background-image: linear-gradient(45deg, transparent 50%, var(--cream) 50%), linear-gradient(135deg, var(--cream) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 55%, calc(100% - 13px) 55%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.arena-pill option {
+  color: var(--ink);
+}
+
+.podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.podium-spot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.podium-face {
+  position: relative;
+}
+
+.podium-face .avatar {
+  box-shadow: 0 0 0 3px var(--cream);
+}
+
+.place-1 .podium-face .avatar {
+  box-shadow: 0 0 0 4px var(--gold);
+}
+
+.podium-shield {
+  position: absolute;
+  right: -6px;
+  bottom: -4px;
+}
+
+.podium-name {
+  margin: 8px 0 0;
+  font-weight: 800;
+}
+
+.podium-glory {
+  margin: 2px 0 8px;
+  font-size: 13px;
+  color: var(--cream-muted);
+}
+
+.place-1 .podium-glory {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+/* the blocks: 1st is tallest and gold (it's a rank), 2nd and 3rd are panels */
+.podium-block {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding-top: 10px;
+  border-radius: 10px 10px 0 0;
+  background: var(--garnet-deep);
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-size: 36px;
+  color: var(--cream);
+}
+
+.place-1 .podium-block {
+  height: 128px;
+  background: var(--gold);
+  color: var(--garnet-deep);
+  font-size: 48px;
+}
+
+.place-2 .podium-block {
+  height: 92px;
+}
+
+.place-3 .podium-block {
+  height: 70px;
+}
+
+/* the list under the podium joins onto it */
+.podium + .board {
+  margin-top: 0;
+}
+
+.podium + .board .row:first-child {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.not-played {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 14px;
+  border: 2px dashed var(--panel-border);
+  border-radius: 14px;
+}
+
+.not-played p {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+}
+
+a.call-out-link {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.arena-actions {
+  margin-top: 20px;
+}
+
+.arena-actions button.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* result screen */
+.result-top {
+  margin-bottom: 28px;
+}
+
+.wordmark-small {
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-size: 24px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+h1.called-it,
+h1.not-this-time {
+  margin: 6px 0 20px;
+  font-size: 76px;
+  line-height: 0.95;
+}
+
+/* calling it is a glory moment, so it's gold. losing is cream and calmer */
+h1.called-it {
+  color: var(--gold);
+}
+
+h1.not-this-time {
+  font-size: 56px;
+}
+
+.result-call {
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.result-call-text {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.result-call-meta {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--cream-muted);
+}
+
+.side-pill {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--on-side);
+}
+
+.side-pill.yes {
+  background: var(--yes);
+}
+
+.side-pill.no {
+  background: var(--no);
+}
+
+.result-card {
+  padding: 18px;
+}
+
+.result-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.result-card-top > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.result-glory {
+  font-size: 72px;
+  line-height: 1;
+}
+
+.result-rank {
+  align-items: center;
+  gap: 4px;
+}
+
+.result-rank-name {
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-size: 22px;
+  text-transform: uppercase;
+  color: var(--garnet);
+}
+
+/* the rank bar on a cream card needs a darker empty track */
+.result-bar .rank-seg {
+  background: rgba(42, 10, 12, 0.12);
+}
+
+.result-bar {
+  margin: 14px 0 8px;
+}
+
+.result-card-meta {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.result-card-meta strong {
+  color: var(--ink);
+}
+
+.result-line {
+  margin: 18px 0 12px;
+  font-size: 16px;
+}
+
+.result-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 15px;
+}
+
+.result-names {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cream-muted);
+  text-align: right;
+}
+
+.result-actions {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+
+a.text-button {
+  font-weight: 800;
+  text-decoration: none;
+}
+
+/* invite screens (shared call link and /join, signed out) */
+main.invite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-height: 100dvh;
+}
+
+main.invite h1.wordmark {
+  font-size: 44px;
+  margin-bottom: 12px;
+}
+
+.arena-tag {
+  margin: 0 0 20px;
+  padding: 5px 14px;
+  border: 1.5px solid var(--cream-muted);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.invite-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-weight: 800;
+}
+
+.invite-call {
+  width: 100%;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.invite-call-text {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.invite-call-closes {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(42, 10, 12, 0.12);
+  text-align: right;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--garnet);
+}
+
+.invite-hook {
+  margin: 16px 0;
+}
+
+.invite-arena-name {
+  margin: 0;
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-size: 40px;
+  text-transform: uppercase;
+}
+
+.how-it-works {
+  width: 100%;
+  margin-top: auto; /* sits at the bottom of the screen like the mockup */
+  margin-bottom: 0;
+  padding: 16px;
+  text-align: left;
+}
+
+/* a little room between the button and the steps when the screen is short */
+main.invite > button {
+  margin-bottom: 32px;
+}
+
+.how-it-works ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-weight: 800;
+}
+
+.how-it-works li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.step {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.how-note {
+  margin: 14px 0 0;
+  font-size: 12px;
   color: var(--cream-muted);
 }

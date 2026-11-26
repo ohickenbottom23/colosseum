@@ -7,25 +7,29 @@ import { collection, doc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/firebase";
 import SignInButton from "../../SignInButton";
+import SharedCallInvite, { InvitePreview } from "../../SharedCallInvite";
 import ShareButton from "../../ShareButton";
 import TakeDown from "../../TakeDown";
 import SplitBar from "../../ui/SplitBar";
 import AvatarStack from "../../ui/AvatarStack";
-import { faceOf } from "../../ui/Avatar";
+import Avatar, { faceOf } from "../../ui/Avatar";
+import { BackIcon } from "../../ui/Icons";
+import { subjectFace } from "../../CallCard";
 import { useAuthUser, usePlayer, usePlayers } from "@/hooks";
-import { callInviteUrl, callText, formatGlory, picksCloseText, resultLine, timeLeft, voidReasonText, errorText } from "@/format";
+import { callInviteUrl, callText, dayText, formatGlory, picksCloseText, resultLine, timeLeft, voidReasonText, errorText } from "@/format";
 import { canDelete, canResolve, canTakeSide, picksCloseAt, previewIfRight } from "@/lib/resolve";
 import { DAILY_TOKENS, RESOLVE_WINDOW_MS } from "@/lib/constants";
 import { formatMultiplier, rankOutlook, sideMultiplier, tierForGlory } from "@/lib/ranks";
 import { Arena, Position, Prediction, Side } from "@/lib/types";
 
-// the bits of previewInvite's answer this page uses
-type InvitePreview = { arena: { name: string; memberCount: number }; call: { text: string } | null };
 
 export default function CallPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const inviteCode = useSearchParams().get("i"); // shared links carry the arena's invite code
+  const params = useSearchParams();
+  const inviteCode = params.get("i"); // shared links carry the arena's invite code
+  const sideFromLink = params.get("side"); // "Prove them wrong" on home picks the side for you
+  const justPosted = params.get("share") === "1"; // came from posting, and the share sheet didn't open
   const { authUser, loading, ready } = useAuthUser();
   const uid = authUser?.uid ?? null;
   const players = usePlayers(!!authUser);
@@ -42,7 +46,7 @@ export default function CallPage() {
   const [notFound, setNotFound] = useState(false);
   const [positions, setPositions] = useState<Position[]>([]);
 
-  const [side, setSide] = useState<Side | null>(null);
+  const [side, setSide] = useState<Side | null>(sideFromLink === "yes" || sideFromLink === "no" ? sideFromLink : null);
   const [stake, setStake] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -115,25 +119,13 @@ export default function CallPage() {
     );
   }
   // opened a shared link while signed out. sign in right here so they stay on this call
+  if (!loading && !authUser && invitePreview) return <SharedCallInvite preview={invitePreview} />;
   if (!loading && !authUser) {
     return (
       <main>
         <h1 className="wordmark">Colosseum</h1>
-        {invitePreview ? (
-          <>
-            <p className="muted">
-              {invitePreview.arena.name} · {invitePreview.arena.memberCount} {invitePreview.arena.memberCount === 1 ? "person" : "people"}
-            </p>
-            {invitePreview.call?.text && <p className="call-big">{invitePreview.call.text}</p>}
-            <p>A friend sent you this call. Join the arena to pick a side.</p>
-            <SignInButton label={`Join ${invitePreview.arena.name} with Google`} />
-          </>
-        ) : (
-          <>
-            <p>A friend sent you a call. Sign in to see it and pick a side.</p>
-            <SignInButton />
-          </>
-        )}
+        <p>A friend sent you a call. Sign in to see it and pick a side.</p>
+        <SignInButton />
       </main>
     );
   }
@@ -160,6 +152,9 @@ export default function CallPage() {
     return m ? `${formatMultiplier(m)} return` : "";
   };
   const myMultiplier = side && myStake ? sideMultiplier(positions, side, myStake) : null;
+
+  // quick stake buttons: 10, 25, 50 if you have that many, and everything you've got
+  const stakeChoices = player ? [...new Set([10, 25, 50].filter((n) => n < player.tokens).concat(player.tokens))] : [];
 
   // would this pick rank you up if you're right, or drop you if you're wrong?
   const outlook =
@@ -211,16 +206,53 @@ export default function CallPage() {
 
   return (
     <main>
-      <Link href="/" className="back">← Back</Link>
+      <div className="top-bar">
+        <Link href="/" className="icon-link" aria-label="Back">
+          <BackIcon />
+        </Link>
+        {call.text && arena && (
+          <ShareButton
+            url={callInviteUrl(window.location.origin, call.id, arena.inviteCode)}
+            text={`${call.text}. Pick a side:`}
+            className="share-top"
+            icon
+          />
+        )}
+      </div>
+
+      {/* who it's about, who made it, and where */}
+      <div className="call-who">
+        <Avatar face={subjectFace(call, (u) => faceOf(u, players))} size={48} />
+        <div>
+          <p className="call-who-about">About {about}</p>
+          <p className="call-who-by">
+            {nameOf(call.creatorId)} made this call{arena && <> in {arena.name}</>}
+          </p>
+        </div>
+      </div>
 
       <p className={call.text ? "call-big" : "call-big removed"}>{callText(call.text)}</p>
-      <p className="call-meta">
-        {arena && <>{arena.name} · </>}About {about} · by {nameOf(call.creatorId)}
-        {call.status === "open" && <> · {timeLeft(call.deadline, now)}</>}
-      </p>
-      {call.status === "open" && <p className="closes">{picksCloseText(closeAt, now)}</p>}
-      {call.text && arena && (
-        <ShareButton url={callInviteUrl(window.location.origin, call.id, arena.inviteCode)} text={`${call.text}. Pick a side:`} />
+      {call.status === "open" && (
+        <div className="call-when">
+          <span className="closes">{picksCloseText(closeAt, now)}</span>
+          <span className="settles">
+            {now < call.deadline ? `Settles ${dayText(call.deadline, now)}` : timeLeft(call.deadline, now)}
+          </span>
+        </div>
+      )}
+
+      {/* just posted, and the share sheet couldn't open on its own */}
+      {justPosted && call.text && arena && (
+        <div className="panel just-posted">
+          <p>Your call is up. Send it to the group chat so people pick a side.</p>
+          <ShareButton
+            url={callInviteUrl(window.location.origin, call.id, arena.inviteCode)}
+            text={`${call.text}. Pick a side:`}
+            label="Share to the group chat"
+            className="main"
+            icon
+          />
+        </div>
       )}
 
       {/* how it ended */}
@@ -308,7 +340,7 @@ export default function CallPage() {
       ) : (
         <div className="form">
           <div className="field">
-            <span>Pick a side</span>
+            <span>Your side</span>
             <div className="chips">
               <button type="button" className={side === "yes" ? "chip big yes on" : "chip big yes"} onClick={() => setSide("yes")}>
                 Yes
@@ -322,7 +354,19 @@ export default function CallPage() {
           </div>
 
           <div className="field">
-            <span>How many tokens? You have {player.tokens}</span>
+            <span>How sure are you? · {player.tokens} tokens</span>
+            <div className="stake-chips">
+              {stakeChoices.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={stake === String(n) ? "chip on" : "chip"}
+                  onClick={() => setStake(String(n))}
+                >
+                  {n === player.tokens ? `All ${n}` : n}
+                </button>
+              ))}
+            </div>
             <input
               type="number"
               inputMode="numeric"
@@ -331,18 +375,9 @@ export default function CallPage() {
               step={1}
               value={stake}
               onChange={(e) => setStake(e.target.value)}
-              placeholder="10"
+              placeholder="Or type an amount"
+              aria-label="Tokens"
             />
-            <div className="chips">
-              {[10, 25].filter((n) => n < player.tokens).map((n) => (
-                <button key={n} type="button" className="chip" onClick={() => setStake(String(n))}>
-                  {n}
-                </button>
-              ))}
-              <button type="button" className="chip" onClick={() => setStake(String(player.tokens))}>
-                Max ({player.tokens})
-              </button>
-            </div>
           </div>
 
           {preview && (
@@ -372,7 +407,7 @@ export default function CallPage() {
           {error && <p className="error">{error}</p>}
 
           <button className="main" onClick={backIt} disabled={!side || !stake || saving}>
-            {saving ? "Saving..." : side ? `Back ${side.toUpperCase()}` : "Back it"}
+            {saving ? "Saving..." : !side ? "Pick a side" : validStake ? `Back ${side.toUpperCase()} with ${amount}` : `Back ${side.toUpperCase()}`}
           </button>
           <p className="muted small">You can&apos;t switch sides once you pick.</p>
         </div>

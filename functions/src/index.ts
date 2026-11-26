@@ -406,7 +406,13 @@ function finishCall(
     }
     const before = { rankTier: user.rankTier ?? tierForGlory(user.glory), onTheLine: user.onTheLine ?? false };
     const rank = nextRankState(before, after.glory, payout.won);
-    const rankResult: RankResult = { before: before.rankTier, after: rank.rankTier, onTheLine: rank.onTheLine, gloryAfter: after.glory };
+    const rankResult: RankResult = {
+      before: before.rankTier,
+      after: rank.rankTier,
+      onTheLine: rank.onTheLine,
+      gloryBefore: user.glory,
+      gloryAfter: after.glory,
+    };
     updates.set(payout.uid, { ...after, rankTier: rank.rankTier, onTheLine: rank.onTheLine });
     tx.update(ref.collection("positions").doc(payout.uid), { result: payout, rankResult });
   }

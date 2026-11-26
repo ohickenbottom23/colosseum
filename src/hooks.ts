@@ -122,3 +122,48 @@ export function useMyArenas(uid: string | null) {
 
   return arenas;
 }
+
+// everyone's picks on a handful of calls (the ones on home), kept in sync, by call id.
+// one listener per call, which is fine for a friend group's worth of open calls
+export function useCallPositions(callIds: string[]) {
+  const [byCall, setByCall] = useState<Record<string, Position[]>>({});
+  const key = callIds.join(",");
+
+  useEffect(() => {
+    if (!key) {
+      setByCall({});
+      return;
+    }
+    const ids = key.split(",");
+    const stops = ids.map((id) =>
+      onSnapshot(
+        collection(db, "predictions", id, "positions"),
+        (snap) => setByCall((old) => ({ ...old, [id]: snap.docs.map((d) => d.data() as Position) })),
+        () => setByCall((old) => ({ ...old, [id]: [] }))
+      )
+    );
+    return () => stops.forEach((stop) => stop());
+  }, [key]);
+
+  return byCall;
+}
+
+// which result screens you've already seen (by call id). null until it's loaded,
+// so home doesn't jump to a result you've seen before the list arrives
+export function useSeenResults(uid: string | null) {
+  const [seen, setSeen] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (!uid) {
+      setSeen(null);
+      return;
+    }
+    return onSnapshot(
+      collection(db, "users", uid, "seen"),
+      (snap) => setSeen(new Set(snap.docs.map((d) => d.id))),
+      () => setSeen(new Set())
+    );
+  }, [uid]);
+
+  return seen;
+}

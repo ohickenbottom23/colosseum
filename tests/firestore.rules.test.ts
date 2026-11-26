@@ -109,6 +109,19 @@ describe("users", () => {
   });
 });
 
+describe("seen result screens", () => {
+  it("you can mark a result as seen and read your own list", async () => {
+    await assertSucceeds(setDoc(doc(as("maya"), "users/maya/seen/p1"), { seenAt: 1 }));
+    await assertSucceeds(getDocs(collection(as("maya"), "users/maya/seen")));
+  });
+
+  it("you can't read or write someone else's", async () => {
+    await assertFails(setDoc(doc(as("jake"), "users/maya/seen/p1"), { seenAt: 1 }));
+    await assertFails(getDocs(collection(as("jake"), "users/maya/seen")));
+    await assertFails(getDocs(collection(signedOut(), "users/maya/seen")));
+  });
+});
+
 describe("arenas", () => {
   it("members can see their arena", async () => {
     await assertSucceeds(getDoc(doc(as("jake"), "arenas/third")));

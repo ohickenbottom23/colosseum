@@ -75,3 +75,37 @@ export function errorText(err: unknown, fallback = "Something went wrong"): stri
   if (!(err instanceof Error) || !err.message) return fallback;
   return err.message.replace(/\s*\[\d{3}\]$/, "");
 }
+
+// "2d left", "5h left", "20m left" for tight spots like card corners
+export function shortLeft(time: number, now: number): string {
+  const ms = time - now;
+  if (ms <= 0) return "done";
+  const minutes = Math.floor(ms / 60000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  if (days >= 1) return `${days}d left`;
+  if (hours >= 1) return `${hours}h left`;
+  return `${Math.max(minutes, 1)}m left`;
+}
+
+// "today", "tomorrow", "Friday" if it's within the next week, otherwise "Dec 12"
+export function dayText(time: number, now: number): string {
+  const d = new Date(time);
+  const today = new Date(now);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(today.getDate() + 1);
+  if (d.toDateString() === today.toDateString()) return "today";
+  if (d.toDateString() === tomorrow.toDateString()) return "tomorrow";
+  if (time - now < 6 * 24 * 60 * 60 * 1000) return d.toLocaleDateString("en-US", { weekday: "long" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// "Thursday at 9pm"
+export function dayAndTime(time: number, now: number): string {
+  const d = new Date(time);
+  const hour = d.getHours() % 12 || 12;
+  const minutes = d.getMinutes();
+  const ampm = d.getHours() < 12 ? "am" : "pm";
+  const clock = minutes === 0 ? `${hour}${ampm}` : `${hour}:${String(minutes).padStart(2, "0")}${ampm}`;
+  return `${dayText(time, now)} at ${clock}`;
+}
