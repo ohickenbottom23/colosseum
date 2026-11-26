@@ -32,6 +32,8 @@ export interface User {
   lastGrantDate: string; // "2026-11-20" in their timezone, for the daily token grant
   timeZone: string; // like "America/Chicago", decides when their day starts
   timeZoneChangedAt: number; // so they can only switch once a week
+  rankTier: number; // 1 Recruit to 5 Legend. only the settle function changes it
+  onTheLine: boolean; // under their rank's floor. one more settled loss drops them
   createdAt: number;
 }
 
@@ -68,6 +70,15 @@ export interface Position {
   stake: number;
   createdAt: number;
   result?: Payout; // filled in when the call is settled or voided
+  rankResult?: RankResult; // filled in when the call is settled (not voided), for the result screen
+}
+
+// what happened to someone's rank when a call they were in got settled
+export interface RankResult {
+  before: number; // tier before
+  after: number; // tier after
+  onTheLine: boolean; // after
+  gloryAfter: number;
 }
 
 // what happens to one player when a call settles

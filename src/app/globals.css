@@ -733,3 +733,124 @@ main.with-tabs {
   background: transparent;
   border: 1.5px dashed var(--gold);
 }
+
+/* ---------- ranks and returns (phase 3) ---------- */
+
+/* "1.1x return" under YES and NO */
+button.chip.big {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+button.chip .sub {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* the "If you're right" box */
+.estimate-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px !important;
+}
+
+.estimate-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.estimate-grid > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.estimate-grid .big-number {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.estimate-unit {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.outlook {
+  font-size: 14px;
+  font-weight: 800;
+  margin-top: 4px !important;
+}
+
+.outlook.up {
+  color: var(--garnet);
+}
+
+/* a warning, so it gets the panel look like the mockup */
+.outlook.drop {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--garnet);
+  color: var(--cream);
+}
+
+/* home rank strip */
+a.rank-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin: 0 0 16px;
+  text-decoration: none;
+}
+
+.rank-strip-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.rank-name {
+  margin: 0;
+  font-family: var(--font-anton), Impact, sans-serif;
+  font-size: 24px;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.rank-meta {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--cream);
+}
+
+.rank-strip-side {
+  width: 112px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.rank-strip-side .rank-bar {
+  width: 100%;
+}
+
+.rank-next {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cream-muted);
+}

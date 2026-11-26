@@ -61,6 +61,19 @@ Glory
 - Kept to one decimal place, so tiny stakes still win and lose a little
 - Leaderboard score = glory x (wins + 5) / (calls + 10), all time
 
+Ranks (logic in `src/lib/ranks.ts`, tiers in `RANKS` in `src/lib/constants.ts`)
+- I Recruit 100, II Gladiator 150, III Centurion 250, IV Champion 400, V Legend 600 (the number is the Glory floor)
+- Crossing a higher rank's floor ranks you up right away (it can skip ranks)
+- A settled loss that leaves you under your rank's floor puts you "on the line". You keep the rank.
+- Your next settled loss while on the line drops you to the rank your Glory is in (can be more than one rank down)
+- A win clears the line, even if you're still under the floor. Recruits can't be on the line (Glory can't go under 100).
+- Voided calls never move rank
+- `rankTier` and `onTheLine` live on the user and only the settle Cloud Function changes them. Each settled position gets a `rankResult` (before, after, onTheLine, gloryAfter) for the result screen.
+
+Multipliers
+- A side's multiplier = the whole pot / total staked on that side. When previewing a pick, include the player's own stake in both.
+- Shown as "1.1x return" (see Wording). It matches `settle` give or take a token of rounding, and there's a test for that.
+
 All the numbers are in `src/lib/constants.ts` and will get tuned after real people play.
 
 ## Security (important)

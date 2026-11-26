@@ -13,6 +13,7 @@ import CallCard from "./CallCard";
 import TabBar from "./TabBar";
 import SignInButton from "./SignInButton";
 import AboutYouCard from "./AboutYouCard";
+import RankStrip from "./RankStrip";
 import NewArenaForm from "./NewArenaForm";
 import { faceOf } from "./ui/Avatar";
 
@@ -124,6 +125,7 @@ export default function Home() {
 
       {player ? (
         <>
+        <RankStrip player={player} />
         <div className="stats">
           <div className="stat">
             <span className="stat-number glory">{formatGlory(player.glory)}</span>

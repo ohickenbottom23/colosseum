@@ -16,6 +16,7 @@ import { useAuthUser, usePlayer, usePlayers } from "@/hooks";
 import { callInviteUrl, callText, formatGlory, picksCloseText, resultLine, timeLeft, voidReasonText, errorText } from "@/format";
 import { canDelete, canResolve, canTakeSide, picksCloseAt, previewIfRight } from "@/lib/resolve";
 import { DAILY_TOKENS, RESOLVE_WINDOW_MS } from "@/lib/constants";
+import { formatMultiplier, rankOutlook, sideMultiplier, tierForGlory } from "@/lib/ranks";
 import { Arena, Position, Prediction, Side } from "@/lib/types";
 
 // the bits of previewInvite's answer this page uses
@@ -151,6 +152,24 @@ export default function CallPage() {
   const amount = Number(stake);
   const validStake = !!player && Number.isInteger(amount) && amount >= 1 && amount <= player.tokens;
   const preview = side && validStake ? previewIfRight(positions, authUser.uid, side, amount) : null;
+
+  // what each side returns. once you've typed a stake it counts yours, like the real thing would
+  const myStake = validStake ? { uid: authUser.uid, stake: amount } : undefined;
+  const returnOf = (s: Side) => {
+    const m = sideMultiplier(positions, s, myStake);
+    return m ? `${formatMultiplier(m)} return` : "";
+  };
+  const myMultiplier = side && myStake ? sideMultiplier(positions, side, myStake) : null;
+
+  // would this pick rank you up if you're right, or drop you if you're wrong?
+  const outlook =
+    preview && player
+      ? rankOutlook(
+          { glory: player.glory, rankTier: player.rankTier ?? tierForGlory(player.glory), onTheLine: player.onTheLine ?? false },
+          amount,
+          preview.gloryChange
+        )
+      : null;
   const isCreator = call.creatorId === authUser.uid;
   const waitingOnResult = call.status === "open" && now >= call.deadline;
   // null means the creator can settle it right now
@@ -293,9 +312,11 @@ export default function CallPage() {
             <div className="chips">
               <button type="button" className={side === "yes" ? "chip big yes on" : "chip big yes"} onClick={() => setSide("yes")}>
                 Yes
+                {returnOf("yes") && <span className="sub">{returnOf("yes")}</span>}
               </button>
               <button type="button" className={side === "no" ? "chip big no on" : "chip big no"} onClick={() => setSide("no")}>
                 No
+                {returnOf("no") && <span className="sub">{returnOf("no")}</span>}
               </button>
             </div>
           </div>
@@ -326,10 +347,24 @@ export default function CallPage() {
 
           {preview && (
             <div className="estimate">
-              <p>
-                If you&apos;re right: about <strong>{preview.tokenChange} tokens back</strong> and{" "}
-                <strong>+{formatGlory(preview.gloryChange)} Glory</strong>
-              </p>
+              <p className="estimate-label">If you&apos;re right</p>
+              <div className="estimate-grid">
+                <div>
+                  <span className="big-number">{myMultiplier ? formatMultiplier(myMultiplier) : "1.0x"}</span>
+                  <span className="estimate-unit">Return</span>
+                </div>
+                <div>
+                  {/* profit: what you get back on top of your own stake */}
+                  <span className="big-number">+{preview.tokenChange - amount}</span>
+                  <span className="estimate-unit">Tokens</span>
+                </div>
+                <div>
+                  <span className="big-number glory">+{formatGlory(preview.gloryChange)}</span>
+                  <span className="estimate-unit">Glory</span>
+                </div>
+              </div>
+              {outlook?.upTo && <p className="outlook up">Ranks you up to {outlook.upTo}</p>}
+              {outlook?.dropTo && <p className="outlook drop">Lose this and you drop to {outlook.dropTo}</p>}
               <p className="small-left">Estimate. It changes as more people pick a side.</p>
             </div>
           )}

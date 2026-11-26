@@ -28,6 +28,7 @@ import {
 } from "./resolve";
 import { deadlineFromPreset, validateNewCall, NewCall } from "./calls";
 import { validateArenaName, isMember, canJoinArena, canMakeArena } from "./arenas";
+import { tierForGlory, rankName, progressToNext, nextRankState, rankOutlook, sideMultiplier, formatMultiplier } from "./ranks";
 
 // little helpers so tests are shorter
 const pos = (uid: string, side: "yes" | "no", stake: number): Position => ({
@@ -70,6 +71,8 @@ const makeUser = (overrides: Partial<User> = {}): User => ({
   lastGrantDate: "2026-11-19",
   timeZone: "America/Chicago",
   timeZoneChangedAt: 0,
+  rankTier: 1,
+  onTheLine: false,
   createdAt: 0,
   ...overrides,
 });
@@ -530,5 +533,114 @@ describe("arenas", () => {
     expect(canMakeArena(thirty.slice(1))).toBeNull();
     expect(canMakeArena(thirty)).toBe("You're in too many arenas already");
     expect(canJoinArena({ memberIds: ["maya"] }, "jake", thirty)).toBe("You're in too many arenas already");
+  });
+});
+
+describe("ranks", () => {
+  it("each rank starts at its floor", () => {
+    expect(tierForGlory(100)).toBe(1);
+    expect(tierForGlory(149.9)).toBe(1);
+    expect(tierForGlory(150)).toBe(2);
+    expect(tierForGlory(250)).toBe(3);
+    expect(tierForGlory(400)).toBe(4);
+    expect(tierForGlory(600)).toBe(5);
+    expect(tierForGlory(5000)).toBe(5);
+    expect(rankName(2)).toBe("Gladiator");
+  });
+
+  it("knows how far you are from the next rank", () => {
+    expect(progressToNext(148, 1)).toEqual({ nextName: "Gladiator", toGo: 2, progress: 0.96 });
+    expect(progressToNext(173, 2).nextName).toBe("Centurion");
+    expect(progressToNext(173, 2).toGo).toBe(77);
+    expect(progressToNext(700, 5)).toEqual({ nextName: null, toGo: 0, progress: 1 });
+    // under your rank's floor (on the line) counts as no progress
+    expect(progressToNext(146, 2).progress).toBe(0);
+  });
+});
+
+describe("rank changes after a settled call", () => {
+  const recruit = { rankTier: 1, onTheLine: false };
+  const gladiator = { rankTier: 2, onTheLine: false };
+  const gladiatorOnTheLine = { rankTier: 2, onTheLine: true };
+
+  it("climbing past a floor ranks you up right away, even skipping a rank", () => {
+    expect(nextRankState(recruit, 151, true)).toEqual({ rankTier: 2, onTheLine: false, change: "up" });
+    expect(nextRankState(recruit, 260, true)).toEqual({ rankTier: 3, onTheLine: false, change: "up" });
+  });
+
+  it("a loss that takes you under your floor puts you on the line, but you keep the rank", () => {
+    expect(nextRankState(gladiator, 146, false)).toEqual({ rankTier: 2, onTheLine: true, change: "line" });
+  });
+
+  it("a loss that keeps you over your floor changes nothing", () => {
+    expect(nextRankState(gladiator, 160, false)).toEqual({ rankTier: 2, onTheLine: false, change: null });
+  });
+
+  it("the next loss while on the line drops you", () => {
+    expect(nextRankState(gladiatorOnTheLine, 128, false)).toEqual({ rankTier: 1, onTheLine: false, change: "down" });
+  });
+
+  it("a big drop can skip ranks, you land in the rank your glory is in", () => {
+    expect(nextRankState({ rankTier: 4, onTheLine: true }, 240, false)).toEqual({ rankTier: 2, onTheLine: false, change: "down" });
+  });
+
+  it("a win clears the line, even if you're still under the floor", () => {
+    expect(nextRankState(gladiatorOnTheLine, 149, true)).toEqual({ rankTier: 2, onTheLine: false, change: "cleared" });
+    expect(nextRankState(gladiatorOnTheLine, 155, true)).toEqual({ rankTier: 2, onTheLine: false, change: "cleared" });
+  });
+
+  it("after a win clears it, the next loss under the floor puts you back on the line instead of dropping you", () => {
+    const cleared = nextRankState(gladiatorOnTheLine, 149, true);
+    expect(nextRankState(cleared, 144, false).change).toBe("line");
+  });
+
+  it("recruits can never be on the line, since glory can't go under 100", () => {
+    expect(nextRankState(recruit, 100, false)).toEqual({ rankTier: 1, onTheLine: false, change: null });
+  });
+
+  it("the If you're right box knows when you'd rank up or drop", () => {
+    // 148 glory, a 50 token win worth 10 would take you to 158: Gladiator
+    expect(rankOutlook({ glory: 148, rankTier: 1, onTheLine: false }, 50, 10)).toEqual({ upTo: "Gladiator", dropTo: null });
+    // on the line at 146, losing 50 tokens costs 25 glory: you'd drop to Recruit
+    expect(rankOutlook({ glory: 146, rankTier: 2, onTheLine: true }, 50, 14)).toEqual({ upTo: null, dropTo: "Recruit" });
+    // nothing changes either way
+    expect(rankOutlook({ glory: 200, rankTier: 2, onTheLine: false }, 10, 2)).toEqual({ upTo: null, dropTo: null });
+  });
+});
+
+describe("multipliers", () => {
+  const picks = [pos("a", "yes", 30), pos("b", "yes", 20), pos("c", "no", 10)];
+
+  it("is the whole pot over what's on that side", () => {
+    expect(sideMultiplier(picks, "yes")).toBe(60 / 50);
+    expect(sideMultiplier(picks, "no")).toBe(6);
+    expect(formatMultiplier(60 / 50)).toBe("1.2x");
+  });
+
+  it("counts your stake when you preview a pick", () => {
+    // adding 10 to no: pot 70, no side 20
+    expect(sideMultiplier(picks, "no", { uid: "me", stake: 10 })).toBe(3.5);
+    // adding 25 to yes: pot 85, yes side 75
+    expect(sideMultiplier(picks, "yes", { uid: "me", stake: 25 })).toBeCloseTo(85 / 75);
+  });
+
+  it("nobody on a side yet means no multiplier, and alone on a side is 1.0x", () => {
+    expect(sideMultiplier([pos("a", "yes", 10)], "no")).toBeNull();
+    expect(sideMultiplier([pos("a", "yes", 10)], "yes")).toBe(1);
+  });
+
+  it("matches what settling really pays, give or take a token of rounding", () => {
+    const cases = [
+      { picks, me: 10, side: "no" as const },
+      { picks, me: 25, side: "yes" as const },
+      { picks: [pos("a", "no", 7), pos("b", "yes", 3), pos("c", "no", 11)], me: 13, side: "yes" as const },
+      { picks: [pos("a", "no", 50)], me: 1, side: "yes" as const },
+    ];
+    for (const c of cases) {
+      const m = sideMultiplier(c.picks, c.side, { uid: "me", stake: c.me })!;
+      const real = settle([...c.picks, pos("me", c.side, c.me)], c.side).find((x) => x.uid === "me")!.tokenChange;
+      expect(real).toBeLessThanOrEqual(c.me * m);
+      expect(real).toBeGreaterThan(c.me * m - 1);
+    }
   });
 });

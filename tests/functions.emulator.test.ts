@@ -1,5 +1,6 @@
 // calls the real Cloud Functions on the emulators, the same way the app does:
-// arenas (make, join, invite previews) and picking a side (members only, not after halfway).
+// arenas (make, join, invite previews), picking a side (members only, not after halfway),
+// and ranks moving when a call is settled.
 // needs the auth, firestore, and functions emulators, so run it with: npm run test:functions
 import { describe, it, expect } from "vitest";
 
@@ -224,5 +225,109 @@ describe("picking a side through takeSide", { timeout: 30000 }, () => {
     await callFunction("takeSide", jake.token, { predictionId: callId, side: "no", stake: 10 });
     const position = await readDoc(`predictions/${callId}/positions/${jake.uid}`);
     expect(position.fields.arenaId.stringValue).toBe(arenaId);
+  });
+});
+
+// ---------- ranks ----------
+
+// set a player's glory and rank directly (as the admin) to start from a known spot
+async function setRank(uid: string, glory: number, rankTier: number, onTheLine: boolean) {
+  await fetch(
+    `${FIRESTORE}/users/${uid}?updateMask.fieldPaths=glory&updateMask.fieldPaths=rankTier&updateMask.fieldPaths=onTheLine`,
+    {
+      method: "PATCH",
+      headers: ADMIN,
+      body: JSON.stringify({
+        fields: { glory: { doubleValue: glory }, rankTier: { integerValue: String(rankTier) }, onTheLine: { booleanValue: onTheLine } },
+      }),
+    }
+  );
+}
+
+async function rankOf(uid: string) {
+  const f = (await readDoc(`users/${uid}`)).fields;
+  return {
+    glory: Number(f.glory.doubleValue ?? f.glory.integerValue),
+    rankTier: Number(f.rankTier.integerValue),
+    onTheLine: f.onTheLine.booleanValue as boolean,
+  };
+}
+
+async function setDeadline(callId: string, deadline: number) {
+  await fetch(`${FIRESTORE}/predictions/${callId}?updateMask.fieldPaths=deadline`, {
+    method: "PATCH",
+    headers: ADMIN,
+    body: JSON.stringify({ fields: { deadline: { integerValue: String(deadline) } } }),
+  });
+}
+
+// maya posts a call backing YES with 10, jake backs NO with jakeStake, then maya settles it
+async function playOne(ctx: Awaited<ReturnType<typeof setUp>>, jakeStake: number, outcome: "yes" | "no") {
+  const made = await callFunction("createCall", ctx.maya.token, {
+    arenaId: ctx.arenaId,
+    text: "Rank test",
+    subjectLabel: "test",
+    deadline: Date.now() + DAY,
+    side: "yes",
+    stake: 10,
+  });
+  const callId = made.result.id as string;
+  await callFunction("takeSide", ctx.jake.token, { predictionId: callId, side: "no", stake: jakeStake });
+  await setDeadline(callId, Date.now() - 60 * 1000);
+  const settled = await callFunction("resolveCall", ctx.maya.token, { predictionId: callId, outcome });
+  expect(settled).toEqual({ result: { status: "resolved" } });
+  return callId;
+}
+
+describe("ranks move when a call is settled", { timeout: 60000 }, () => {
+  it("new players start as Recruits, not on the line", async () => {
+    const sam = await newPlayer("Sam");
+    expect(await rankOf(sam.uid)).toEqual({ glory: 100, rankTier: 1, onTheLine: false });
+  });
+
+  it("a win past the next floor ranks you up, and the result is saved for the result screen", async () => {
+    const ctx = await setUp();
+    await setRank(ctx.jake.uid, 148, 1, false);
+    // jake alone on NO with 50: 50 x 1.2 x 1 = 60 glory, 148 -> 208
+    const callId = await playOne(ctx, 50, "no");
+    expect(await rankOf(ctx.jake.uid)).toEqual({ glory: 208, rankTier: 2, onTheLine: false });
+
+    const pick = await readDoc(`predictions/${callId}/positions/${ctx.jake.uid}`);
+    const r = pick.fields.rankResult.mapValue.fields;
+    expect(Number(r.before.integerValue)).toBe(1);
+    expect(Number(r.after.integerValue)).toBe(2);
+    expect(r.onTheLine.booleanValue).toBe(false);
+  });
+
+  it("a loss under the floor puts you on the line, and the next loss drops you", async () => {
+    const ctx = await setUp();
+    await setRank(ctx.jake.uid, 152, 2, false);
+
+    // losing 10 tokens costs 25 x 0.2 = 5 glory: 152 -> 147, under Gladiator's 150
+    await playOne(ctx, 10, "yes");
+    expect(await rankOf(ctx.jake.uid)).toEqual({ glory: 147, rankTier: 2, onTheLine: true });
+
+    // another 5: 147 -> 142, and since he was on the line he drops to Recruit
+    const callId = await playOne(ctx, 10, "yes");
+    expect(await rankOf(ctx.jake.uid)).toEqual({ glory: 142, rankTier: 1, onTheLine: false });
+    const r = (await readDoc(`predictions/${callId}/positions/${ctx.jake.uid}`)).fields.rankResult.mapValue.fields;
+    expect([Number(r.before.integerValue), Number(r.after.integerValue)]).toEqual([2, 1]);
+  });
+
+  it("a win clears the line", async () => {
+    const ctx = await setUp();
+    await setRank(ctx.jake.uid, 147, 2, true);
+    await playOne(ctx, 10, "no"); // jake wins 50 x 1.2 x 0.2 = 12: 147 -> 159
+    expect(await rankOf(ctx.jake.uid)).toEqual({ glory: 159, rankTier: 2, onTheLine: false });
+  });
+
+  it("a voided call leaves your rank alone", async () => {
+    const ctx = await setUp();
+    await setRank(ctx.jake.uid, 147, 2, true);
+    await callFunction("takeSide", ctx.jake.token, { predictionId: ctx.callId, side: "no", stake: 10 });
+    // maya never settles it, so the sweep voids it 48 hours after the deadline
+    await setDeadline(ctx.callId, Date.now() - 49 * 60 * 60 * 1000);
+    await callFunction("runSweep", ctx.maya.token, {});
+    expect(await rankOf(ctx.jake.uid)).toEqual({ glory: 147, rankTier: 2, onTheLine: true });
   });
 });

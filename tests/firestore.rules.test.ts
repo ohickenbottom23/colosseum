@@ -86,6 +86,11 @@ describe("users", () => {
     await assertFails(updateDoc(doc(as("maya"), "users/maya"), { lastGrantDate: "2000-01-01" }));
   });
 
+  it("you can't promote yourself or get off the line", async () => {
+    await assertFails(updateDoc(doc(as("maya"), "users/maya"), { rankTier: 5 }));
+    await assertFails(updateDoc(doc(as("maya"), "users/maya"), { onTheLine: false }));
+  });
+
   it("you can't get into an arena by adding it to your own list", async () => {
     await assertFails(updateDoc(doc(as("maya"), "users/maya"), { arenaIds: arrayUnion("roommates") }));
   });

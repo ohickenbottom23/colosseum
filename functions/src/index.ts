@@ -4,7 +4,8 @@ import { randomBytes } from "crypto";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { START_GLORY, START_TOKENS } from "../../src/lib/constants";
-import { Arena, Payout, Position, Prediction, Side, User, VoidReason } from "../../src/lib/types";
+import { Arena, Payout, Position, Prediction, RankResult, Side, User, VoidReason } from "../../src/lib/types";
+import { nextRankState, tierForGlory } from "../../src/lib/ranks";
 import { canJoinArena, canMakeArena, isMember, validateArenaName } from "../../src/lib/arenas";
 import {
   applyPayout,
@@ -53,6 +54,8 @@ export const ensureUser = onCall(async (request) => {
         calls: 0,
         missedResolves: 0,
         arenaIds: [], // they join or make one next
+        rankTier: 1,
+        onTheLine: false,
         lastGrantDate: localDate(now, timeZone), // starting tokens count as today's
         timeZone,
         timeZoneChangedAt: now,
@@ -67,8 +70,12 @@ export const ensureUser = onCall(async (request) => {
     const today = localDate(now, tz.timeZone);
 
     const updates: Partial<User> = {};
-    // players made before arenas existed don't have the list yet
+    // players made before arenas or ranks existed don't have these yet
     if (!Array.isArray(user.arenaIds)) updates.arenaIds = [];
+    if (typeof user.rankTier !== "number") {
+      updates.rankTier = tierForGlory(user.glory);
+      updates.onTheLine = false;
+    }
     if (tz.changed) {
       updates.timeZone = tz.timeZone;
       updates.timeZoneChangedAt = now;
@@ -385,12 +392,23 @@ function finishCall(
   missedResolve = false
 ) {
   // build each player's update first so nobody's record gets written twice
-  const updates = new Map<string, Record<string, number>>();
+  const updates = new Map<string, Record<string, number | boolean>>();
   for (const payout of payouts) {
     const user = call.users.get(payout.uid);
     if (!user) continue;
-    updates.set(payout.uid, applyPayout(user, payout, counted));
-    tx.update(ref.collection("positions").doc(payout.uid), { result: payout });
+    const after = applyPayout(user, payout, counted);
+
+    // a settled call can move your rank. voided ones (refunds) never do
+    if (!counted) {
+      updates.set(payout.uid, after);
+      tx.update(ref.collection("positions").doc(payout.uid), { result: payout });
+      continue;
+    }
+    const before = { rankTier: user.rankTier ?? tierForGlory(user.glory), onTheLine: user.onTheLine ?? false };
+    const rank = nextRankState(before, after.glory, payout.won);
+    const rankResult: RankResult = { before: before.rankTier, after: rank.rankTier, onTheLine: rank.onTheLine, gloryAfter: after.glory };
+    updates.set(payout.uid, { ...after, rankTier: rank.rankTier, onTheLine: rank.onTheLine });
+    tx.update(ref.collection("positions").doc(payout.uid), { result: payout, rankResult });
   }
 
   if (missedResolve) {

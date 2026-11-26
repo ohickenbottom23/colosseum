@@ -33,3 +33,12 @@ export const SMOOTH_CALLS = 10;
 export const MAX_ARENA_NAME = 30;
 export const MAX_ARENA_MEMBERS = 50; // a friend group, not a stadium
 export const MAX_ARENAS_PER_PLAYER = 30; // home loads every arena's calls in one query, and 30 is that query's limit
+
+// ranks. the floor is the glory you need to reach that rank
+export const RANKS = [
+  { tier: 1, name: "Recruit", floor: 100 },
+  { tier: 2, name: "Gladiator", floor: 150 },
+  { tier: 3, name: "Centurion", floor: 250 },
+  { tier: 4, name: "Champion", floor: 400 },
+  { tier: 5, name: "Legend", floor: 600 },
+];
