@@ -163,9 +163,10 @@ export const createCall = onCall(async (request) => {
       resolvedAt: null,
     };
 
-    // same checks as anyone picking a side (whole tokens, enough of them, picks still open)
+    // same checks as anyone picking a side (whole tokens, enough of them, picks still open),
+    // except the creator can back their own call with 0, so running out never stops a post
     const user = userSnap.data() as User;
-    const sideProblem = canTakeSide(prediction, user, stake, false, now);
+    const sideProblem = canTakeSide(prediction, user, stake, false, now, true);
     if (sideProblem) throw new HttpsError("failed-precondition", sideProblem);
 
     const position: Position = { uid, predictionId: ref.id, arenaId, side: side as Side, stake, createdAt: now };

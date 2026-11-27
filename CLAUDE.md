@@ -34,6 +34,7 @@ Calls
 
 Playing
 - Stake any whole number of tokens you have. The stake comes out of your balance right away.
+- The creator backs their own call when posting, and that one pick can be 0 tokens, so running out never stops anyone making a call. Everyone else puts in at least 1. A 0 stake wins and loses no tokens and no Glory.
 - Sides are locked once picked.
 - The creator can pick a side too. If nobody besides the creator joins, the call is voided.
 

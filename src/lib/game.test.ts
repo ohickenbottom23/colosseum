@@ -707,3 +707,44 @@ describe("leaving and removing", () => {
     expect(canJoinArena(after, "riley", [])).toBeNull();
   });
 });
+
+describe("making a call with no tokens", () => {
+  const p = makePrediction(); // maya made it
+  const broke = makeUser({ uid: "maya", tokens: 0 });
+
+  it("the creator can back their own call with 0, even when they're out of tokens", () => {
+    expect(canTakeSide(p, broke, 0, false, DAY, true)).toBeNull();
+    expect(canTakeSide(p, makeUser({ uid: "maya", tokens: 40 }), 0, false, DAY, true)).toBeNull();
+  });
+
+  it("the creator still can't put in more than they have, or part of a token", () => {
+    expect(canTakeSide(p, broke, 5, false, DAY, true)).toBe("You don't have enough tokens");
+    expect(canTakeSide(p, broke, -1, false, DAY, true)).toBe("Stake has to be a whole number of tokens");
+    expect(canTakeSide(p, makeUser(), 2.5, false, DAY, true)).toBe("Stake has to be a whole number of tokens");
+  });
+
+  it("everyone else still has to put in at least 1", () => {
+    expect(canTakeSide(p, makeUser({ uid: "jake" }), 0, false, DAY)).toBe("Stake has to be at least 1 token");
+  });
+
+  it("a 0 token winner doesn't break the split (no dividing by zero)", () => {
+    const returns = splitPot([pos("maya", "yes", 0), pos("jake", "no", 20)], "yes");
+    expect(returns.get("maya")).toBe(0);
+    expect(returns.get("jake")).toBe(0);
+  });
+
+  it("a 0 token winner next to a real one: the real one gets the whole pot", () => {
+    const returns = splitPot([pos("maya", "yes", 0), pos("sam", "yes", 10), pos("jake", "no", 20)], "yes");
+    expect(returns.get("maya")).toBe(0);
+    expect(returns.get("sam")).toBe(30);
+  });
+
+  it("no stake means no glory either way, but others still count it as a side", () => {
+    const payouts = settle([pos("maya", "yes", 0), pos("jake", "no", 50)], "yes");
+    const maya = payouts.find((x) => x.uid === "maya")!;
+    const jake = payouts.find((x) => x.uid === "jake")!;
+    expect(maya).toMatchObject({ tokenChange: 0, gloryChange: 0, won: true });
+    expect(jake).toMatchObject({ tokenChange: 0, gloryChange: -25, won: false });
+    expect(Number.isNaN(maya.tokenChange)).toBe(false);
+  });
+});

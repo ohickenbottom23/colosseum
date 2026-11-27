@@ -101,6 +101,11 @@ export function dayText(time: number, now: number): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+// "Sunday, Nov 29": the exact day, for when a call settles
+export function fullDay(time: number): string {
+  return new Date(time).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+}
+
 // "Thursday at 9pm"
 export function dayAndTime(time: number, now: number): string {
   const d = new Date(time);

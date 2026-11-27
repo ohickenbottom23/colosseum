@@ -101,7 +101,8 @@ export default function ResultPage() {
   else if (rank.onTheLine) rankLabel = "On the line";
 
   const profit = mine.result.tokenChange - mine.stake;
-  const multiplier = mine.result.tokenChange / mine.stake;
+  // a 0 token pick (the creator backing their own call with nothing) has no return to show
+  const multiplier = mine.stake > 0 ? mine.result.tokenChange / mine.stake : null;
 
   return (
     <main>
@@ -150,9 +151,11 @@ export default function ResultPage() {
             {next.nextName && !rank.onTheLine && <> · {next.toGo} to {next.nextName}</>}
           </span>
           <span>
-            {won ? (
+            {mine.stake === 0 ? (
+              <strong>No tokens on this one</strong>
+            ) : won ? (
               <>
-                <strong>+{profit} tokens</strong> · {multiplier.toFixed(1)}x
+                <strong>+{profit} tokens</strong> · {multiplier?.toFixed(1)}x
               </>
             ) : (
               <strong>−{mine.stake} tokens</strong>

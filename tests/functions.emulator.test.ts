@@ -421,3 +421,52 @@ describe("leaving and removing", { timeout: 60000 }, () => {
     expect(await callFunction("leaveArena", null, { arenaId: ctx.arenaId })).toEqual({ error: "Sign in first" });
   });
 });
+
+// ---------- posting with no tokens ----------
+
+describe("out of tokens", { timeout: 30000 }, () => {
+  async function setTokens(uid: string, tokens: number) {
+    await fetch(`${FIRESTORE}/users/${uid}?updateMask.fieldPaths=tokens`, {
+      method: "PATCH",
+      headers: ADMIN,
+      body: JSON.stringify({ fields: { tokens: { integerValue: String(tokens) } } }),
+    });
+  }
+
+  it("you can still post a call and back it with no stake", async () => {
+    const ctx = await setUp();
+    await setTokens(ctx.jake.uid, 0);
+    const res = await callFunction("createCall", ctx.jake.token, {
+      arenaId: ctx.arenaId,
+      text: "Broke but confident",
+      subjectLabel: "test",
+      deadline: Date.now() + DAY,
+      side: "yes",
+      stake: 0,
+    });
+    expect(res.result.id).toBeTruthy();
+    const pick = await readDoc(`predictions/${res.result.id}/positions/${ctx.jake.uid}`);
+    expect(Number(pick.fields.stake.integerValue)).toBe(0);
+    expect(await tokensOf(ctx.jake.uid)).toBe(0);
+  });
+
+  it("a 0 stake is only for the creator's own pick, nobody else's", async () => {
+    const ctx = await setUp();
+    const res = await callFunction("takeSide", ctx.jake.token, { predictionId: ctx.callId, side: "no", stake: 0 });
+    expect(res).toEqual({ error: "Stake has to be at least 1 token" });
+  });
+
+  it("the creator still can't put in tokens they don't have", async () => {
+    const ctx = await setUp();
+    await setTokens(ctx.jake.uid, 0);
+    const res = await callFunction("createCall", ctx.jake.token, {
+      arenaId: ctx.arenaId,
+      text: "Broke",
+      subjectLabel: "test",
+      deadline: Date.now() + DAY,
+      side: "yes",
+      stake: 5,
+    });
+    expect(res).toEqual({ error: "You don't have enough tokens" });
+  });
+});

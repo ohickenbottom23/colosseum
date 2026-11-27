@@ -65,9 +65,10 @@ export function splitPot(positions: Position[], outcome: Side): Map<string, numb
     returns.set(p.uid, 0);
   }
 
-  // if nobody won, the pot just goes away
+  // if nobody won, the pot just goes away. same if the only winners put in 0 tokens:
+  // nothing in means no share (and no dividing by zero)
   for (const p of winners) {
-    const share = Math.floor((pot * p.stake) / winnerTotal);
+    const share = winnerTotal === 0 ? 0 : Math.floor((pot * p.stake) / winnerTotal);
     returns.set(p.uid, p.stake + share);
   }
 

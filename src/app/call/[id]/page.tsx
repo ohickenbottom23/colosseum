@@ -282,6 +282,8 @@ export default function CallPage() {
           noCount={no.length}
           yesTokens={yes.reduce((sum, p) => sum + p.stake, 0)}
           noTokens={no.reduce((sum, p) => sum + p.stake, 0)}
+          yesMultiplier={sideMultiplier(positions, "yes")}
+          noMultiplier={sideMultiplier(positions, "no")}
         />
         <div className="side-faces">
           <AvatarStack faces={yes.map((p) => faceOf(p.uid, players))} max={6} />
@@ -329,7 +331,7 @@ export default function CallPage() {
       {mine ? (
         call.status === "open" && (
           <p className="picked">
-            You picked <strong>{mine.side.toUpperCase()}</strong> with {mine.stake} tokens.
+            You picked <strong>{mine.side.toUpperCase()}</strong> {mine.stake === 0 ? "with no stake" : `with ${mine.stake} tokens`}.
           </p>
         )
       ) : !canStillPick ? (

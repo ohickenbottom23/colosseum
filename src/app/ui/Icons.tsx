@@ -82,3 +82,12 @@ export function CrownIcon({ size = 30 }: IconProps) {
     </svg>
   );
 }
+
+// for calls about a thing ("the weather") instead of a person
+export function TopicIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...stroke}>
+      <path d="M9 3 7 21M17 3l-2 18M4 8.5h17M3 15.5h17" />
+    </svg>
+  );
+}

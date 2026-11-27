@@ -74,7 +74,6 @@ export default function CallCard({
               <AvatarStack faces={yes.map((p) => faceFor(p.uid))} size={24} max={5} ring="var(--cream)" />
               {no.length > 0 && (
                 <span className="call-people-no">
-                  <span>NO {no.length}</span>
                   <AvatarStack faces={no.map((p) => faceFor(p.uid))} size={24} max={4} ring="var(--cream)" />
                 </span>
               )}

@@ -10,7 +10,7 @@ import { DeadlinePreset, deadlineFromPreset, NewCall, validateNewCall } from "@/
 import { DAILY_TOKENS, MAX_CALL_TEXT, MAX_LABEL } from "@/lib/constants";
 import { canTakeSide } from "@/lib/resolve";
 import { Prediction, Side } from "@/lib/types";
-import { callInviteUrl, dayAndTime, errorText } from "@/format";
+import { callInviteUrl, dayAndTime, errorText, fullDay } from "@/format";
 import NewArenaForm from "../NewArenaForm";
 import Avatar from "../ui/Avatar";
 import { CloseIcon, PlusIcon } from "../ui/Icons";
@@ -50,6 +50,7 @@ function NewCallForm() {
   const [side, setSide] = useState<Side | null>(null);
   const [stake, setStake] = useState("");
   const [shareAfter, setShareAfter] = useState(true);
+  const [exampleSeed] = useState(() => Math.random()); // picks whose name goes in the example, once
   const [error, setError] = useState("");
   const [posting, setPosting] = useState(false);
 
@@ -66,6 +67,13 @@ function NewCallForm() {
   // only people in that arena, and not you, since you can't make a call about yourself
   const friends = players.filter((p) => arena?.memberIds.includes(p.uid) && p.uid !== authUser.uid);
 
+  // the example in the text box is about someone else in the arena (never you),
+  // or a general one if you're the only one in it
+  const exampleFriend = friends.length > 0 ? friends[Math.floor(exampleSeed * friends.length)] : null;
+  const example = exampleFriend
+    ? `${exampleFriend.displayName.split(" ")[0]} makes it to every 8am this week`
+    : "The group chat picks a dinner spot by Friday";
+
   function pickArena(id: string) {
     setArenaId(id);
     setMakingArena(false);
@@ -78,7 +86,9 @@ function NewCallForm() {
   const closeAt = now + (deadline - now) / 2;
 
   const tokens = player?.tokens ?? 0;
-  const stakeChoices = [...new Set([10, 25, 50].filter((n) => n < tokens).concat(tokens > 0 ? [tokens] : []))];
+  // "None" (0) is always there: you can back your own call with nothing, so being out of tokens
+  // never stops you from posting. then 10, 25, 50 if you have that many, and all of it
+  const stakeChoices = [...new Set([0, 10, 25, 50].filter((n) => n < tokens).concat(tokens))];
 
   async function post(e: React.FormEvent) {
     e.preventDefault();
@@ -113,7 +123,12 @@ function NewCallForm() {
       setError("Pick your side");
       return;
     }
-    const amount = Number(stake);
+    // out of tokens means 0. with tokens, pick an amount (None is fine) so it's never by accident
+    if (stake === "" && tokens > 0) {
+      setError("Pick how many tokens to put on it. None is fine");
+      return;
+    }
+    const amount = stake === "" ? 0 : Number(stake);
     if (player) {
       // same checks as picking a side on any call
       const draft: Prediction = {
@@ -198,8 +213,12 @@ function NewCallForm() {
             onChange={(e) => setText(e.target.value)}
             maxLength={MAX_CALL_TEXT}
             rows={3}
-            placeholder="Sam finally does his laundry this week"
+            placeholder={example}
           />
+          {/* the exact day, so it's easy to spot when it doesn't match what you wrote */}
+          <span className="settle-date">
+            {Number.isFinite(deadline) ? `Settles ${fullDay(deadline)}` : "Pick a date to see when it settles"}
+          </span>
         </label>
 
         <div className="field">
@@ -292,15 +311,16 @@ function NewCallForm() {
             <div className="stake-chips">
               {stakeChoices.map((n) => (
                 <button key={n} type="button" className={stake === String(n) ? "chip on" : "chip"} onClick={() => setStake(String(n))}>
-                  {n === tokens ? `All ${n}` : n}
+                  {n === 0 ? "None" : n === tokens ? `All ${n}` : n}
                 </button>
               ))}
             </div>
           )}
+          {tokens > 0 && (
           <input
             type="number"
             inputMode="numeric"
-            min={1}
+            min={0}
             max={player?.tokens}
             step={1}
             value={stake}
@@ -308,6 +328,7 @@ function NewCallForm() {
             placeholder="Or type an amount"
             aria-label="Tokens"
           />
+          )}
         </div>
 
         <label className="check">
@@ -316,12 +337,12 @@ function NewCallForm() {
         </label>
 
         {player?.tokens === 0 && (
-          <p className="muted">You need at least 1 token to back a call. You get {DAILY_TOKENS} more tomorrow.</p>
+          <p className="muted">You&apos;re out of tokens, so you&apos;ll back this one with none. You get {DAILY_TOKENS} more tomorrow.</p>
         )}
 
         {error && <p className="error">{error}</p>}
 
-        <button type="submit" className="main" disabled={posting || player?.tokens === 0 || arenas.length === 0}>
+        <button type="submit" className="main" disabled={posting || arenas.length === 0}>
           {posting ? "Posting..." : "Post call"}
         </button>
         <p className="muted small">

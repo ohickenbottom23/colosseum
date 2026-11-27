@@ -16,17 +16,24 @@ export function picksCloseAt(prediction: Prediction): number {
   return prediction.createdAt + Math.floor((prediction.deadline - prediction.createdAt) / 2);
 }
 
+// creatorsOwnPick: the creator's pick when posting. it can be 0 tokens, so running out of
+// tokens never stops you from making a call. everyone else puts in at least 1
 export function canTakeSide(
   prediction: Prediction,
   user: User,
   stake: number,
   alreadyHasPosition: boolean,
-  now: number
+  now: number,
+  creatorsOwnPick = false
 ): string | null {
   if (prediction.status !== "open") return "This call isn't open anymore";
   if (now >= picksCloseAt(prediction)) return "Picks are closed for this call";
   if (alreadyHasPosition) return "You already picked a side";
-  if (!Number.isInteger(stake) || stake < 1) return "Stake has to be at least 1 token";
+  if (creatorsOwnPick) {
+    if (!Number.isInteger(stake) || stake < 0) return "Stake has to be a whole number of tokens";
+  } else if (!Number.isInteger(stake) || stake < 1) {
+    return "Stake has to be at least 1 token";
+  }
   if (stake > user.tokens) return "You don't have enough tokens";
   return null; // null means it's fine
 }

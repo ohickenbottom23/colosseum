@@ -93,13 +93,13 @@ function Leaderboard() {
               <div className="podium-face">
                 <Avatar face={faceOfUser(r.user)} size={podium.indexOf(r) === 0 ? 84 : 66} />
                 <span className="podium-shield">
-                  <RankShield tier={tierOf(r.user)} size={22} onTheLine={r.user.onTheLine} />
+                  <RankShield tier={tierOf(r.user)} size={podium.indexOf(r) === 0 ? 34 : 30} onTheLine={r.user.onTheLine} />
                 </span>
               </div>
               <p className="podium-name">{nameFor(r.user)}</p>
               <p className="podium-glory">
                 <span className="glory">{formatGlory(r.user.glory)}</span> ·{" "}
-                {r.user.onTheLine ? "On the line" : rankName(tierOf(r.user))}
+                {NUMERALS[tierOf(r.user) - 1]} {r.user.onTheLine ? "· On the line" : rankName(tierOf(r.user))}
               </p>
               <div className="podium-block">{r.rank}</div>
             </div>

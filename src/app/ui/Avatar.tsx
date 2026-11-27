@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { TopicIcon } from "./Icons";
 
 // colors for faces with no photo. none of them are gold, YES blue, or NO orange
 const FACE_COLORS = ["#5b4a8b", "#3f6b3a", "#3e5170", "#2f5e63", "#8a5a3c", "#7a3b45", "#4f5a2e", "#6a3f6b"];
@@ -32,6 +33,16 @@ export function faceOf(uid: string, players: { uid: string; displayName: string;
 // someone's Google photo, or their initials on a colored circle if there isn't one (or it won't load)
 export default function Avatar({ face, size = 36 }: { face: Face; size?: number }) {
   const [broken, setBroken] = useState(false);
+
+  // a call about a thing, not a person ("the weather"): an icon instead of initials
+  if (face.uid.startsWith("label:")) {
+    return (
+      <span className="avatar topic" style={{ width: size, height: size }} title={face.name} role="img" aria-label={face.name}>
+        <TopicIcon size={Math.round(size * 0.5)} />
+      </span>
+    );
+  }
+
   const showPhoto = face.photoURL && !broken;
 
   return (

@@ -1,5 +1,6 @@
-// YES vs NO. the bar is split by how many tokens are on each side, and each side can
-// show its multiplier ("1.2x"). "big" is the call page version with large counts on top
+// YES vs NO. the bar is split by how many tokens are on each side, and each side is labeled
+// with its multiplier ("YES · 2.5x"). the faces under the bar show who's on each side, so no
+// head counts here. "big" is the call page version with the labels large on top
 export default function SplitBar({
   yesCount,
   noCount,
@@ -23,14 +24,15 @@ export default function SplitBar({
   // nobody yet: an even, empty looking bar
   const yesShare = total === 0 ? 0.5 : yesWeight / total;
 
-  const multiplier = (m?: number | null) => (m ? ` · ${m.toFixed(1)}x` : "");
+  // "YES · 2.5x", or just "YES" when nobody's on that side yet
+  const label = (side: string, m?: number | null) => (m ? `${side} · ${m.toFixed(1)}x` : side);
 
   return (
     <div className={big ? "split big" : "split"}>
       {big && (
         <div className="split-heads">
-          <span className="yes">Yes {yesCount}</span>
-          <span className="no">No {noCount}</span>
+          <span className="yes">{label("Yes", yesMultiplier)}</span>
+          <span className="no">{label("No", noMultiplier)}</span>
         </div>
       )}
       <div
@@ -43,14 +45,8 @@ export default function SplitBar({
         <div className={total > 0 ? "seg-no" : "seg-no empty"} style={{ width: `${(1 - yesShare) * 100}%` }} />
         {!big && (
           <div className="split-labels">
-            <span>
-              YES {yesCount}
-              {multiplier(yesMultiplier)}
-            </span>
-            <span>
-              NO {noCount}
-              {multiplier(noMultiplier)}
-            </span>
+            <span>{label("YES", yesMultiplier)}</span>
+            <span>{label("NO", noMultiplier)}</span>
           </div>
         )}
       </div>

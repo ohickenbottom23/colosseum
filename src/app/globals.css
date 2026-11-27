@@ -1126,15 +1126,16 @@ button.main {
 /* stake chips fill the row like the mockup */
 .stake-chips {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(56px, 1fr));
   gap: 8px;
 }
 
 .stake-chips button.chip {
   width: 100%;
-  padding: 12px 4px;
-  font-size: 16px;
+  padding: 12px 2px;
+  font-size: 15px;
   font-weight: 800;
+  white-space: nowrap; /* "All 160" stays on one line */
 }
 
 /* make a call */
@@ -1273,8 +1274,8 @@ label.check input {
 
 .podium-shield {
   position: absolute;
-  right: -6px;
-  bottom: -4px;
+  right: -12px;
+  bottom: -8px;
 }
 
 .podium-name {
@@ -1794,11 +1795,13 @@ button.chip.talk.on {
   }
 }
 
-/* the crown over first place */
+/* the crown over first place: above the avatar with a little gap, drawn on top of its ring */
 .crown {
+  position: relative;
+  z-index: 1;
   display: flex;
   justify-content: center;
-  margin-bottom: -6px;
+  margin-bottom: 6px;
 }
 
 /* members panel on the leaderboard */
@@ -1878,4 +1881,19 @@ button.chip.talk.on {
 
 .leave-link {
   margin-top: 4px;
+}
+
+/* "Settles Sunday, Nov 29" under the call text. not a section label, so undo that style */
+.field > span.settle-date {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cream-muted);
+}
+
+/* the icon circle for calls about a thing, not a person */
+.avatar.topic {
+  background: var(--garnet-deep);
+  color: var(--cream);
 }
