@@ -1739,3 +1739,57 @@ button.chip.talk.on {
   font-weight: 700;
   color: var(--muted);
 }
+
+/* ---------- motion (phase 6). quick, and off when the phone asks for reduced motion ---------- */
+
+/* the split bar slides when someone picks a side */
+.split-bar .seg-yes,
+.split-bar .seg-no {
+  transition: width 300ms ease-out, background-color 300ms ease-out;
+}
+
+/* nobody's picked yet: the halves are there but see-through */
+.split-bar .seg-yes.empty,
+.split-bar .seg-no.empty {
+  background-color: transparent;
+}
+
+/* the rank bar fills when glory changes */
+.rank-seg .fill {
+  transition: width 500ms ease-out;
+}
+
+/* the shield flips in on a rank up */
+.shield {
+  transform-origin: center;
+}
+
+.shield.flip {
+  animation: shield-flip 600ms ease-out;
+}
+
+@keyframes shield-flip {
+  0% {
+    transform: perspective(200px) rotateY(180deg) scale(0.7);
+    opacity: 0;
+  }
+  60% {
+    transform: perspective(200px) rotateY(-15deg) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .split-bar .seg-yes,
+  .split-bar .seg-no,
+  .rank-seg .fill {
+    transition: none;
+  }
+
+  .shield.flip {
+    animation: none;
+  }
+}

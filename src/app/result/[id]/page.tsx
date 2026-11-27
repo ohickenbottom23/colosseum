@@ -26,6 +26,7 @@ export default function ResultPage() {
   const [call, setCall] = useState<Prediction | null>(null);
   const [arena, setArena] = useState<Arena | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [filled, setFilled] = useState(false); // false = rank bar still showing where you were before
 
   useEffect(() => {
     if (!loading && !authUser) router.replace("/");
@@ -42,6 +43,14 @@ export default function ResultPage() {
       stopPicks();
     };
   }, [authUser, id]);
+
+  // once the result is on screen, let the rank bar move from before to after
+  const ready = !!call;
+  useEffect(() => {
+    if (!ready) return;
+    const t = setTimeout(() => setFilled(true), 400);
+    return () => clearTimeout(t);
+  }, [ready]);
 
   const arenaId = call?.arenaId ?? null;
   useEffect(() => {
@@ -63,6 +72,7 @@ export default function ResultPage() {
   const rank = mine.rankResult;
   const gloryChange = Math.round((rank.gloryAfter - rank.gloryBefore) * 10) / 10;
   const next = progressToNext(rank.gloryAfter, rank.after);
+  const before = progressToNext(rank.gloryBefore, rank.before);
   const nameOf = (u: string) => (u === authUser.uid ? "You" : players.find((p) => p.uid === u)?.displayName.split(" ")[0] ?? "Someone");
 
   const right = positions.filter((p) => p.side === call.outcome);
@@ -123,12 +133,16 @@ export default function ResultPage() {
           </div>
           <div className="result-rank">
             <span className="estimate-unit">{rankLabel}</span>
-            <RankShield tier={rank.after} size={44} onTheLine={rank.onTheLine} />
+            <RankShield tier={rank.after} size={44} onTheLine={rank.onTheLine} flip={rank.after > rank.before} />
             <span className="result-rank-name">{rankName(rank.after)}</span>
           </div>
         </div>
         <div className="result-bar">
-          <RankBar tier={rank.after} progress={next.progress} onTheLine={rank.onTheLine} />
+          <RankBar
+            tier={filled ? rank.after : rank.before}
+            progress={filled ? next.progress : before.progress}
+            onTheLine={filled && rank.onTheLine}
+          />
         </div>
         <p className="result-card-meta">
           <span>

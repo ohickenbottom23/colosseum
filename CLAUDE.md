@@ -120,6 +120,10 @@ Pieces (in `src/app/ui/`, reuse these instead of rebuilding them)
 - `RankShield`: shield with a Roman numeral, dashed when on the line
 - `RankBar`: 5 segments, one per rank, the next one filling up
 
+Motion (CSS only, no animation library)
+- The split bar slides (300ms) when someone picks, the rank bar fills (500ms) when Glory changes, the shield flips (600ms) on a rank up
+- Keep motion quick, and turn it off under `@media (prefers-reduced-motion: reduce)`
+
 ## More background
 
 Read `docs/product.md` when working on anything user facing, or when a decision isn't covered here.

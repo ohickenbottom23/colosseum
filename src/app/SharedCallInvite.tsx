@@ -38,7 +38,7 @@ export default function SharedCallInvite({ preview }: { preview: InvitePreview }
     if (yes.length + no.length === 0) hook = "Nobody's picked a side yet. Be first.";
     else if (no.length === 1 && yes.length > 1) hook = `${first(no[0])} is the only one saying no. Think they're right?`;
     else if (yes.length === 1 && no.length > 1) hook = `${first(yes[0])} is the only one saying yes. Think they're right?`;
-    else hook = `${yes.length} say yes, ${no.length} say no. Where are you?`;
+    else hook = `${yes.length} ${yes.length === 1 ? "says" : "say"} yes, ${no.length} ${no.length === 1 ? "says" : "say"} no. Where are you?`;
   }
 
   // the half way point, when picks close (same math as the app uses)

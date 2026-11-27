@@ -38,12 +38,9 @@ export default function SplitBar({
         role="img"
         aria-label={`${yesCount} picked yes, ${noCount} picked no`}
       >
-        {total > 0 && (
-          <>
-            <div className="seg-yes" style={{ width: `${yesShare * 100}%` }} />
-            <div className="seg-no" style={{ width: `${(1 - yesShare) * 100}%` }} />
-          </>
-        )}
+        {/* always drawn (see-through while nobody's picked) so the widths can slide when someone picks */}
+        <div className={total > 0 ? "seg-yes" : "seg-yes empty"} style={{ width: `${yesShare * 100}%` }} />
+        <div className={total > 0 ? "seg-no" : "seg-no empty"} style={{ width: `${(1 - yesShare) * 100}%` }} />
         {!big && (
           <div className="split-labels">
             <span>

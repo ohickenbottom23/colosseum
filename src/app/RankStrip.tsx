@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { formatGlory } from "@/format";
 import { progressToNext, rankName, tierForGlory } from "@/lib/ranks";
@@ -12,9 +15,17 @@ export default function RankStrip({ player }: { player: User }) {
   const onTheLine = player.onTheLine ?? false;
   const next = progressToNext(player.glory, tier);
 
+  // a rank up while you're looking flips the shield. changing the key replays the animation
+  const lastTier = useRef(tier);
+  const [flips, setFlips] = useState(0);
+  useEffect(() => {
+    if (tier > lastTier.current) setFlips((n) => n + 1);
+    lastTier.current = tier;
+  }, [tier]);
+
   return (
     <Link href="/leaderboard" className="panel rank-strip">
-      <RankShield tier={tier} size={34} onTheLine={onTheLine} />
+      <RankShield key={flips} tier={tier} size={34} onTheLine={onTheLine} flip={flips > 0} />
       <div className="rank-strip-main">
         <p className="rank-name">{rankName(tier)}</p>
         <p className="rank-meta">
