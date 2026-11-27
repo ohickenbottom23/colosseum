@@ -349,7 +349,6 @@ select:focus {
 }
 
 /* cards are links. links are cream by default, so set the card's ink color again */
-a.call,
 a.plain-link {
   display: block;
   color: var(--ink);
@@ -670,12 +669,22 @@ main.with-tabs {
   color: var(--no);
 }
 
+/* "· be first" next to a side nobody's on. smaller than the big YES / NO */
+.split-heads .be-first {
+  font-family: var(--font-inter), sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: none;
+  vertical-align: middle;
+}
+
 .split-bar {
   position: relative;
   display: flex;
   height: 26px;
   border-radius: 999px;
   overflow: hidden;
+  justify-content: space-between; /* when both sides are empty, the slivers sit at the two ends */
   background: rgba(128, 112, 108, 0.3); /* the empty track, shows on both cream and garnet */
 }
 
@@ -945,8 +954,10 @@ button.me-button {
   gap: 10px;
 }
 
-a.call {
+a.call-link {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .call-people {
@@ -1005,18 +1016,19 @@ a.call {
   line-height: 1.25;
 }
 
-.called-out-actions {
+/* a button under a card ("Prove them wrong", "Pick a side", "Settle it"), with a note beside it */
+.card-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.called-out-actions .call-mine {
+.card-actions .call-mine {
   margin: 0;
 }
 
-a.prove-button {
+a.card-button {
   padding: 12px 20px;
   border-radius: 10px;
   background: var(--garnet);
@@ -1026,13 +1038,13 @@ a.prove-button {
 }
 
 /* the take-down link sits next to the button, its confirm drops below */
-.called-out-actions .takedown {
+.card-actions .takedown {
   margin: 0;
   padding: 0;
   border: none;
 }
 
-.called-out-actions:has(.takedown .form) {
+.card-actions:has(.takedown .form) {
   flex-direction: column;
   align-items: stretch;
 }
@@ -1749,12 +1761,6 @@ button.chip.talk.on {
   transition: width 300ms ease-out, background-color 300ms ease-out;
 }
 
-/* nobody's picked yet: the halves are there but see-through */
-.split-bar .seg-yes.empty,
-.split-bar .seg-no.empty {
-  background-color: transparent;
-}
-
 /* the rank bar fills when glory changes */
 .rank-seg .fill {
   transition: width 500ms ease-out;
@@ -1896,4 +1902,22 @@ button.chip.talk.on {
 .avatar.topic {
   background: var(--garnet-deep);
   color: var(--cream);
+}
+
+/* leaderboard for an arena that's just you: a line and a big gold invite button */
+.just-me {
+  margin: 28px 0;
+  text-align: center;
+}
+
+.just-me p {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.just-me button.main {
+  width: 100%;
+  padding: 18px 20px;
+  font-size: 18px;
 }

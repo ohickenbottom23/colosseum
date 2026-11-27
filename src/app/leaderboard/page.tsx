@@ -3,10 +3,11 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuthUser, useMyArenas, usePlayers } from "@/hooks";
+import { useAuthUser, useMyArenas, useMyPositions, usePlayers } from "@/hooks";
 import { arenaInviteUrl, formatGlory } from "@/format";
 import { rankPlayers, Ranked } from "@/lib/glory";
 import { rankName, tierForGlory } from "@/lib/ranks";
+import { defaultArena } from "@/lib/arenas";
 import { User } from "@/lib/types";
 import TabBar from "../TabBar";
 import ShareButton from "../ShareButton";
@@ -37,6 +38,7 @@ function Leaderboard() {
   const { authUser, loading } = useAuthUser();
   const players = usePlayers(!!authUser);
   const arenas = useMyArenas(authUser?.uid ?? null);
+  const myPositions = useMyPositions(authUser?.uid ?? null);
   const [arenaId, setArenaId] = useState(useSearchParams().get("arena") ?? "");
   const [makingArena, setMakingArena] = useState(false);
 
@@ -47,8 +49,11 @@ function Leaderboard() {
 
   if (!authUser) return <main><p>Loading...</p></main>;
 
-  // the arena you picked, or your first one until you pick
-  const arena = arenas.find((a) => a.id === arenaId) ?? arenas[0];
+  // the arena you picked, or until you pick, the one you used last. if every arena is just you,
+  // there's nothing better to show, so it's your first one (with a nudge to invite people)
+  const startOn = defaultArena(arenas, [...myPositions.values()]);
+  const arena = arenas.find((a) => a.id === arenaId) ?? arenas.find((a) => a.id === startOn) ?? arenas[0];
+  const justMe = !!arena && arena.memberIds.length === 1;
 
   // glory and records belong to the person, so this just ranks the arena's members
   const members = players.filter((p) => arena?.memberIds.includes(p.uid));
@@ -81,7 +86,21 @@ function Leaderboard() {
         </div>
       )}
 
-      {podium.length > 0 && (
+      {/* nobody to rank against yet: the one thing to do here is bring people in */}
+      {justMe && (
+        <div className="just-me">
+          <p>It&apos;s just you in here. Bring your people.</p>
+          <ShareButton
+            url={arenaInviteUrl(window.location.origin, arena.inviteCode)}
+            text={`Join ${arena.name} on Colosseum`}
+            label="Invite people"
+            className="main"
+            icon
+          />
+        </div>
+      )}
+
+      {!justMe && podium.length > 0 && (
         <div className="podium">
           {podiumOrder.map((r) => (
             <div key={r.user.uid} className={`podium-spot place-${podium.indexOf(r) + 1}`}>
@@ -107,7 +126,7 @@ function Leaderboard() {
         </div>
       )}
 
-      {rest.length > 0 && (
+      {!justMe && rest.length > 0 && (
         <ol className="board">
           {rest.map((r) => (
             <li key={r.user.uid} className={r.user.uid === authUser.uid ? "row me" : "row"}>
@@ -131,12 +150,12 @@ function Leaderboard() {
         </ol>
       )}
 
-      {arena && ranked.length === 0 && (
+      {arena && !justMe && ranked.length === 0 && (
         <p className="muted">Nobody&apos;s on the board yet. You show up once a call you picked a side on is settled.</p>
       )}
 
       {/* people who haven't played yet, and a nudge to make a call about them */}
-      {arena && notPlayed.length > 0 && (
+      {arena && !justMe && notPlayed.length > 0 && (
         <div className="not-played">
           <AvatarStack faces={notPlayed.map(faceOfUser)} size={34} max={3} />
           <p>
@@ -156,13 +175,15 @@ function Leaderboard() {
       {arena && (
         <div className="arena-actions">
           <MembersPanel arena={arena} players={players} myUid={authUser.uid} onLeft={() => setArenaId("")} />
-          <ShareButton
-            url={arenaInviteUrl(window.location.origin, arena.inviteCode)}
-            text={`Join ${arena.name} on Colosseum`}
-            label="Invite people"
-            className="secondary"
-            icon
-          />
+          {!justMe && (
+            <ShareButton
+              url={arenaInviteUrl(window.location.origin, arena.inviteCode)}
+              text={`Join ${arena.name} on Colosseum`}
+              label="Invite people"
+              className="secondary"
+              icon
+            />
+          )}
         </div>
       )}
 

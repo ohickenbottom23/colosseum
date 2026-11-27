@@ -47,6 +47,7 @@ export interface Arena {
   inviteCode: string; // goes in invite links. any member can share it
   createdAt: number;
   removedIds?: string[]; // people the owner removed. they can't rejoin with the invite link
+  lastCallAt?: number; // when the newest call was posted here, so we can tell which arena is busiest
 }
 
 export interface Prediction {

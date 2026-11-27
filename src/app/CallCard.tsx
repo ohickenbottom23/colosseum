@@ -26,6 +26,7 @@ export default function CallCard({
   now,
   reactions = [],
   commentCount = 0,
+  action,
 }: {
   call: Prediction;
   positions: Position[];
@@ -36,6 +37,7 @@ export default function CallCard({
   now: number;
   reactions?: Reaction[];
   commentCount?: number;
+  action?: { label: string; href: string }; // a button under the card, like "Pick a side"
 }) {
   const counts = countReactions(reactions);
   const hasTalk = reactions.length > 0 || commentCount > 0;
@@ -45,8 +47,8 @@ export default function CallCard({
   const sum = (list: Position[]) => list.reduce((total, p) => total + p.stake, 0);
 
   return (
-    <li>
-      <Link href={`/call/${call.id}`} className="call">
+    <li className="call">
+      <Link href={`/call/${call.id}`} className="plain-link call-link">
         <div className="call-top">
           <Avatar face={subjectFace(call, faceFor)} size={40} />
           <div className="call-body">
@@ -97,8 +99,18 @@ export default function CallCard({
           </div>
         )}
 
-        {note && <p className="call-mine">{note}</p>}
+        {note && !action && <p className="call-mine">{note}</p>}
       </Link>
+
+      {/* outside the card's link, since a link can't go inside another link */}
+      {action && (
+        <div className="card-actions">
+          <Link href={action.href} className="card-button">
+            {action.label}
+          </Link>
+          {note && <p className="call-mine">{note}</p>}
+        </div>
+      )}
     </li>
   );
 }

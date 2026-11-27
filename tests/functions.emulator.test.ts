@@ -192,6 +192,13 @@ describe("making a call", { timeout: 30000 }, () => {
     expect(await callFunction("createCall", maya.token, { ...base, subjectLabel: "x" })).toEqual({ error: "Pick an arena" });
     expect(await tokensOf(sam.uid)).toBe(50);
   });
+
+  it("marks the arena with when its newest call was posted", async () => {
+    const before = Date.now();
+    const { arenaId } = await setUp();
+    const arena = await readDoc(`arenas/${arenaId}`);
+    expect(Number(arena.fields.lastCallAt.integerValue)).toBeGreaterThanOrEqual(before);
+  });
 });
 
 describe("picking a side through takeSide", { timeout: 30000 }, () => {

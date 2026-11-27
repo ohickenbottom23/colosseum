@@ -27,7 +27,7 @@ import {
   previewIfRight,
 } from "./resolve";
 import { deadlineFromPreset, validateNewCall, NewCall } from "./calls";
-import { validateArenaName, isMember, canJoinArena, canMakeArena, canLeaveArena, canRemoveMember, ownerAfterLeaving } from "./arenas";
+import { validateArenaName, isMember, canJoinArena, canMakeArena, canLeaveArena, canRemoveMember, ownerAfterLeaving, defaultArena } from "./arenas";
 import { REACTIONS, countReactions, tapReaction, validateComment, isReactionType } from "./trashTalk";
 import { tierForGlory, rankName, progressToNext, nextRankState, rankOutlook, sideMultiplier, formatMultiplier } from "./ranks";
 
@@ -746,5 +746,34 @@ describe("making a call with no tokens", () => {
     expect(maya).toMatchObject({ tokenChange: 0, gloryChange: 0, won: true });
     expect(jake).toMatchObject({ tokenChange: 0, gloryChange: -25, won: false });
     expect(Number.isNaN(maya.tokenChange)).toBe(false);
+  });
+});
+
+describe("default arena", () => {
+  const dorm = { id: "dorm", memberIds: ["maya", "jake", "sam"], lastCallAt: 100 };
+  const team = { id: "team", memberIds: ["maya", "nora"], lastCallAt: 500 };
+  const solo = { id: "solo", memberIds: ["maya"], lastCallAt: 900 };
+
+  it("starts on the arena you used last", () => {
+    const picks = [
+      { arenaId: "team", createdAt: 10 },
+      { arenaId: "dorm", createdAt: 20 },
+    ];
+    expect(defaultArena([dorm, team, solo], picks)).toBe("dorm");
+  });
+
+  it("picks the most active arena when you haven't played", () => {
+    expect(defaultArena([dorm, team, solo], [])).toBe("team");
+    // no calls anywhere yet: the one with the most people
+    expect(defaultArena([{ ...dorm, lastCallAt: undefined }, { ...team, lastCallAt: undefined }], [])).toBe("dorm");
+  });
+
+  it("never starts on an arena that's just you", () => {
+    expect(defaultArena([dorm, solo], [{ arenaId: "solo", createdAt: 99 }])).toBe("dorm");
+    expect(defaultArena([solo], [])).toBeNull();
+  });
+
+  it("skips arenas you've left", () => {
+    expect(defaultArena([dorm, team], [{ arenaId: "gone", createdAt: 99 }, { arenaId: "team", createdAt: 1 }])).toBe("team");
   });
 });

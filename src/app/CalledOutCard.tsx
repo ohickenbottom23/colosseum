@@ -28,6 +28,9 @@ export default function CalledOutCard({
   // "prove them wrong" means taking the other side from whoever made the call
   const against: Side = creatorSide === "yes" ? "no" : "yes";
   const canPick = !mine && now < picksCloseAt(call);
+  // what to say when you can't pick: your side, and once the deadline's up, who it's waiting on
+  const waiting = now >= call.deadline ? ` Waiting on ${nameOf(call.creatorId).split(" ")[0]} to settle.` : "";
+  const status = mine ? `You picked ${mine.side.toUpperCase()}.${waiting}` : `Picks are closed.${waiting}`;
   const yes = positions.filter((p) => p.side === "yes");
   const no = positions.filter((p) => p.side === "no");
   const sum = (list: Position[]) => list.reduce((total, p) => total + p.stake, 0);
@@ -54,15 +57,13 @@ export default function CalledOutCard({
         />
       </Link>
 
-      <div className="called-out-actions">
+      <div className="card-actions">
         {canPick ? (
-          <Link href={`/call/${call.id}?side=${against}`} className="prove-button">
+          <Link href={`/call/${call.id}?side=${against}`} className="card-button">
             Prove them wrong
           </Link>
-        ) : mine ? (
-          <p className="call-mine">You picked {mine.side.toUpperCase()}</p>
         ) : (
-          <p className="call-mine">Picks are closed</p>
+          <p className="call-mine">{status}</p>
         )}
         <TakeDown callId={call.id} myStake={mine?.stake ?? null} label="Take it down" />
       </div>

@@ -83,11 +83,12 @@ export function CrownIcon({ size = 30 }: IconProps) {
   );
 }
 
-// for calls about a thing ("the weather") instead of a person
+// a question mark, for calls about a thing ("the weather") instead of a person
 export function TopicIcon({ size = 20 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...stroke}>
-      <path d="M9 3 7 21M17 3l-2 18M4 8.5h17M3 15.5h17" />
+      <path d="M8.5 8.5a3.5 3.5 0 1 1 5 3.2c-1 .5-1.5 1.2-1.5 2.3v.5" />
+      <path d="M12 18.5h.01" strokeWidth={3} />
     </svg>
   );
 }

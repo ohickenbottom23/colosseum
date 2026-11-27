@@ -173,6 +173,8 @@ export const createCall = onCall(async (request) => {
     tx.set(ref, prediction);
     tx.set(ref.collection("positions").doc(uid), position);
     tx.update(userRef, { tokens: user.tokens - stake });
+    // so the app can tell which arena is busiest (for picking a default arena)
+    tx.update(db.doc(`arenas/${arenaId}`), { lastCallAt: now });
   });
 
   return { id: ref.id };

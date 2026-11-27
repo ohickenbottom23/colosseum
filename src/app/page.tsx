@@ -6,9 +6,10 @@ import { signOut } from "firebase/auth";
 import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "@/firebase";
 import { useAuthUser, useCallPositions, useMyArenas, useMyPositions, usePlayer, usePlayers, useSeenResults, useTalkCounts } from "@/hooks";
-import { resultLine } from "@/format";
+import { resultLine, timeUntil } from "@/format";
 import { Prediction } from "@/lib/types";
 import { picksCloseAt } from "@/lib/resolve";
+import { RESOLVE_WINDOW_MS } from "@/lib/constants";
 import CallCard from "./CallCard";
 import CalledOutCard from "./CalledOutCard";
 import TabBar from "./TabBar";
@@ -128,11 +129,18 @@ export default function Home() {
     .filter((c) => !shownAbove.has(c.id))
     .sort((a, b) => Number(needsSide(b)) - Number(needsSide(a)) || b.createdAt - a.createdAt);
 
+  // how long you have left to settle one of your calls
+  function settleNote(c: Prediction): string {
+    const left = timeUntil(c.deadline + RESOLVE_WINDOW_MS, now);
+    return left ? `${left} left to settle` : "Time to settle is up";
+  }
+
+  // "You picked YES", and once the deadline's up, who it's waiting on
   function openNote(c: Prediction): string | undefined {
     const mine = myPositions.get(c.id);
-    if (mine) return `You picked ${mine.side.toUpperCase()}`;
-    if (now >= c.deadline) return `Waiting on ${nameOf(c.creatorId)} to say what happened`;
-    return undefined;
+    const waiting = now >= c.deadline ? `Waiting on ${nameOf(c.creatorId).split(" ")[0]} to settle.` : "";
+    if (mine) return `You picked ${mine.side.toUpperCase()}${waiting ? `. ${waiting}` : ""}`;
+    return waiting || undefined;
   }
 
   // what to say under a finished call
@@ -147,7 +155,7 @@ export default function Home() {
     return `Result: ${c.outcome?.toUpperCase()}`;
   }
 
-  const card = (c: Prediction, note?: string) => (
+  const card = (c: Prediction, note?: string, action?: { label: string; href: string }) => (
     <CallCard
       key={c.id}
       call={c}
@@ -159,6 +167,7 @@ export default function Home() {
       now={now}
       reactions={talk.reactions[c.id]}
       commentCount={talk.commentCounts[c.id]}
+      action={action}
     />
   );
 
@@ -189,7 +198,10 @@ export default function Home() {
       {player && (
         <>
           <RankStrip player={player} />
-          <p className="explainer">Tokens are what you put behind a call. Glory is your record for being right.</p>
+          {/* new players get a reminder of what's what, until they've had a few calls settle */}
+          {player.calls < 3 && (
+            <p className="explainer">Tokens are what you put behind a call. Glory is your record for being right.</p>
+          )}
         </>
       )}
 
@@ -202,6 +214,18 @@ export default function Home() {
             the invite link to your group chat, or open an invite link a friend sent you.
           </p>
           <NewArenaForm main />
+        </>
+      )}
+
+      {/* your calls past their deadline come first: everyone's waiting on you to settle them */}
+      {needsResult.length > 0 && (
+        <>
+          <h2>Settle these</h2>
+          <ul className="calls">
+            {needsResult.map((c) =>
+              card(c, settleNote(c), { label: "Settle it", href: `/call/${c.id}` })
+            )}
+          </ul>
         </>
       )}
 
@@ -221,18 +245,13 @@ export default function Home() {
         </ul>
       )}
 
-      {needsResult.length > 0 && (
-        <>
-          <h2>Needs your result</h2>
-          <ul className="calls">{needsResult.map((c) => card(c, "Deadline's up. Say what happened"))}</ul>
-        </>
-      )}
-
       {hasArenas && (
         <>
           <h2>Open calls</h2>
           {openCalls.length === 0 && <p className="muted">Nothing open right now. Tap + to make a call.</p>}
-          <ul className="calls">{openCalls.map((c) => card(c, openNote(c)))}</ul>
+          <ul className="calls">
+            {openCalls.map((c) => card(c, openNote(c), needsSide(c) ? { label: "Pick a side", href: `/call/${c.id}` } : undefined))}
+          </ul>
         </>
       )}
 

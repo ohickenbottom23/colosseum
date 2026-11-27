@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
-import { useAuthUser, useMyArenas, usePlayer, usePlayers } from "@/hooks";
+import { useAuthUser, useMyArenas, useMyPositions, usePlayer, usePlayers } from "@/hooks";
 import { DeadlinePreset, deadlineFromPreset, NewCall, validateNewCall } from "@/lib/calls";
 import { DAILY_TOKENS, MAX_CALL_TEXT, MAX_LABEL } from "@/lib/constants";
 import { canTakeSide } from "@/lib/resolve";
+import { defaultArena } from "@/lib/arenas";
 import { Prediction, Side } from "@/lib/types";
 import { callInviteUrl, dayAndTime, errorText, fullDay } from "@/format";
 import NewArenaForm from "../NewArenaForm";
@@ -38,6 +39,7 @@ function NewCallForm() {
   const players = usePlayers(!!authUser);
   const player = usePlayer(authUser?.uid ?? null);
   const arenas = useMyArenas(authUser?.uid ?? null);
+  const myPositions = useMyPositions(authUser?.uid ?? null);
 
   // "Call them out" on the leaderboard opens this with the arena and person filled in
   const [arenaId, setArenaId] = useState(params.get("arena") ?? "");
@@ -61,8 +63,9 @@ function NewCallForm() {
 
   if (!authUser) return <main><p>Loading...</p></main>;
 
-  // the arena you picked, or your first one until you pick
-  const arena = arenas.find((a) => a.id === arenaId) ?? arenas[0];
+  // the arena you picked, or until you pick, the one you used last (never one that's just you)
+  const startOn = defaultArena(arenas, [...myPositions.values()]);
+  const arena = arenas.find((a) => a.id === arenaId) ?? arenas.find((a) => a.id === startOn);
 
   // only people in that arena, and not you, since you can't make a call about yourself
   const friends = players.filter((p) => arena?.memberIds.includes(p.uid) && p.uid !== authUser.uid);

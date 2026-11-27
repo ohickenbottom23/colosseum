@@ -49,3 +49,23 @@ export function ownerAfterLeaving(arena: Pick<Arena, "memberIds" | "ownerId">, l
   if (rest.length === 0) return null;
   return arena.ownerId === leavingUid ? rest[0] : arena.ownerId;
 }
+
+// which arena Make a call and the leaderboard start on: the one you used last (your newest
+// call or pick), or the most active one if you haven't played yet (newest call, then most
+// people). never one where you're the only member. null when every arena is just you
+export function defaultArena(
+  arenas: Pick<Arena, "id" | "memberIds" | "lastCallAt">[],
+  myPicks: { arenaId: string; createdAt: number }[]
+): string | null {
+  const withOthers = arenas.filter((a) => a.memberIds.length > 1);
+  if (withOthers.length === 0) return null;
+
+  const ids = new Set(withOthers.map((a) => a.id));
+  const used = myPicks.filter((p) => ids.has(p.arenaId)).sort((a, b) => b.createdAt - a.createdAt);
+  if (used.length > 0) return used[0].arenaId;
+
+  const busiest = [...withOthers].sort(
+    (a, b) => (b.lastCallAt ?? 0) - (a.lastCallAt ?? 0) || b.memberIds.length - a.memberIds.length
+  );
+  return busiest[0].id;
+}

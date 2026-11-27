@@ -325,7 +325,7 @@ export default function CallPage() {
       )}
 
       {waitingOnResult && !isCreator && (
-        <p className="muted">Waiting on {nameOf(call.creatorId)} to say what happened.</p>
+        <p className="muted">Waiting on {nameOf(call.creatorId)} to settle.</p>
       )}
 
       {mine ? (
