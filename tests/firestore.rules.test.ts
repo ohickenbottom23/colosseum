@@ -18,6 +18,7 @@ import {
   getDocs,
   query,
   setDoc,
+  serverTimestamp,
   setLogLevel,
   updateDoc,
   where,
@@ -257,6 +258,92 @@ describe("positions", () => {
 
   it("you can't delete your position to get out of it", async () => {
     await assertFails(deleteDoc(doc(as("jake"), "predictions/p1/positions/jake")));
+  });
+});
+
+describe("trash talk", () => {
+  // what the app sends: who, what, and the server's clock
+  const reaction = (uid: string, type: string) => ({ uid, type, createdAt: serverTimestamp() });
+  const comment = (uid: string, text: string) => ({ uid, text, createdAt: serverTimestamp(), edited: false });
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "predictions/p1/reactions/jake"), { uid: "jake", type: "cap", createdAt: new Date() });
+      await setDoc(doc(db, "predictions/p1/comments/c1"), { uid: "jake", text: "screenshot this", createdAt: new Date(), edited: false });
+      // a call the person it was about took down (the text gets wiped)
+      await setDoc(doc(db, "predictions/gone"), { text: "", creatorId: "maya", status: "void", arenaId: "third" });
+    });
+  });
+
+  it("members can react, switch their reaction, and take it back", async () => {
+    await assertSucceeds(setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), reaction("maya", "noshot")));
+    await assertSucceeds(setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), reaction("maya", "lockit")));
+    await assertSucceeds(deleteDoc(doc(as("maya"), "predictions/p1/reactions/maya")));
+  });
+
+  it("members can see reactions and comments", async () => {
+    await assertSucceeds(getDocs(collection(as("maya"), "predictions/p1/reactions")));
+    await assertSucceeds(getDocs(collection(as("maya"), "predictions/p1/comments")));
+  });
+
+  it("people outside the arena can't see or add any", async () => {
+    await assertFails(getDocs(collection(as("sam"), "predictions/p1/reactions")));
+    await assertFails(getDocs(collection(as("sam"), "predictions/p1/comments")));
+    await assertFails(setDoc(doc(as("sam"), "predictions/p1/reactions/sam"), reaction("sam", "cap")));
+    await assertFails(setDoc(doc(as("sam"), "predictions/p1/comments/c2"), comment("sam", "hi")));
+    await assertFails(getDocs(collection(signedOut(), "predictions/p1/comments")));
+  });
+
+  it("you can't react as someone else or take back someone else's", async () => {
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/reactions/jake"), reaction("jake", "noshot")));
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), reaction("jake", "noshot")));
+    await assertFails(deleteDoc(doc(as("maya"), "predictions/p1/reactions/jake")));
+  });
+
+  it("only the three preset reactions, nothing extra on them", async () => {
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), reaction("maya", "fire")));
+    await assertFails(
+      setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), { ...reaction("maya", "cap"), glory: 999 })
+    );
+  });
+
+  it("you can't backdate a reaction or comment", async () => {
+    await assertFails(
+      setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), { uid: "maya", type: "cap", createdAt: new Date(2000, 0, 1) })
+    );
+    await assertFails(
+      setDoc(doc(as("maya"), "predictions/p1/comments/c2"), { uid: "maya", text: "hi", createdAt: new Date(2000, 0, 1), edited: false })
+    );
+  });
+
+  it("comments have to be 1 to 200 characters", async () => {
+    await assertSucceeds(setDoc(doc(as("maya"), "predictions/p1/comments/c2"), comment("maya", "he hasn't seen an 8am since September")));
+    await assertSucceeds(setDoc(doc(as("maya"), "predictions/p1/comments/c3"), comment("maya", "x".repeat(200))));
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/comments/c4"), comment("maya", "x".repeat(201))));
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/comments/c5"), comment("maya", "")));
+  });
+
+  it("you can't comment as someone else", async () => {
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/comments/c2"), comment("jake", "I'm Jake")));
+  });
+
+  it("you can edit and delete your own comment, nobody else's", async () => {
+    await assertSucceeds(updateDoc(doc(as("jake"), "predictions/p1/comments/c1"), { text: "screenshot this. I'm locked in", edited: true }));
+    await assertFails(updateDoc(doc(as("maya"), "predictions/p1/comments/c1"), { text: "Jake is wrong", edited: true }));
+    await assertFails(deleteDoc(doc(as("maya"), "predictions/p1/comments/c1")));
+    await assertSucceeds(deleteDoc(doc(as("jake"), "predictions/p1/comments/c1")));
+  });
+
+  it("editing can only change the text, and not past 200 characters", async () => {
+    await assertFails(updateDoc(doc(as("jake"), "predictions/p1/comments/c1"), { uid: "maya", edited: true }));
+    await assertFails(updateDoc(doc(as("jake"), "predictions/p1/comments/c1"), { text: "x".repeat(201), edited: true }));
+    await assertFails(updateDoc(doc(as("jake"), "predictions/p1/comments/c1"), { createdAt: new Date(), edited: true }));
+  });
+
+  it("nobody can react or comment on a call the subject took down", async () => {
+    await assertFails(setDoc(doc(as("maya"), "predictions/gone/reactions/maya"), reaction("maya", "cap")));
+    await assertFails(setDoc(doc(as("maya"), "predictions/gone/comments/c1"), comment("maya", "lol")));
   });
 });
 

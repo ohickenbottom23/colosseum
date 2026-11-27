@@ -19,6 +19,8 @@ export type InvitePreview = {
     subject: (Face & { name: string }) | null;
     yes: Face[];
     no: Face[];
+    reactions: number;
+    comments: number;
   } | null;
 };
 
@@ -65,7 +67,13 @@ export default function SharedCallInvite({ preview }: { preview: InvitePreview }
               <AvatarStack faces={call.yes} size={26} ring="var(--cream)" />
               <AvatarStack faces={call.no} size={26} ring="var(--cream)" />
             </div>
-            {call.status === "open" && <p className="invite-call-closes">{picksCloseText(closeAt, Date.now())}</p>}
+            <div className="invite-call-foot">
+              <span>
+                <strong>{call.reactions}</strong> {call.reactions === 1 ? "reaction" : "reactions"} · <strong>{call.comments}</strong>{" "}
+                {call.comments === 1 ? "comment" : "comments"}
+              </span>
+              {call.status === "open" && <span className="invite-call-closes">{picksCloseText(closeAt, Date.now())}</span>}
+            </div>
           </div>
 
           <p className="invite-hook">{hook}</p>

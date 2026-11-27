@@ -89,3 +89,22 @@ export interface Payout {
   gloryChange: number;
   won: boolean;
 }
+
+// trash talk. these are the one thing the app writes straight to Firestore, since they
+// never touch glory or tokens. the rules still check who you are and that you're in the arena
+export type ReactionType = "noshot" | "lockit" | "cap";
+
+// predictions/{id}/reactions/{uid}: one per person per call
+export interface Reaction {
+  uid: string;
+  type: ReactionType;
+}
+
+// predictions/{id}/comments/{commentId}
+export interface Comment {
+  id: string;
+  uid: string;
+  text: string;
+  createdAt: number; // millis, from the server's clock
+  edited: boolean;
+}

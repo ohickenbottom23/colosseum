@@ -28,6 +28,7 @@ import {
 } from "./resolve";
 import { deadlineFromPreset, validateNewCall, NewCall } from "./calls";
 import { validateArenaName, isMember, canJoinArena, canMakeArena } from "./arenas";
+import { REACTIONS, countReactions, tapReaction, validateComment, isReactionType } from "./trashTalk";
 import { tierForGlory, rankName, progressToNext, nextRankState, rankOutlook, sideMultiplier, formatMultiplier } from "./ranks";
 
 // little helpers so tests are shorter
@@ -642,5 +643,38 @@ describe("multipliers", () => {
       expect(real).toBeLessThanOrEqual(c.me * m);
       expect(real).toBeGreaterThan(c.me * m - 1);
     }
+  });
+});
+
+describe("trash talk", () => {
+  it("has the three preset reactions", () => {
+    expect(REACTIONS.map((r) => r.label)).toEqual(["No shot", "Lock it", "Cap"]);
+    expect(isReactionType("cap")).toBe(true);
+    expect(isReactionType("fire")).toBe(false);
+  });
+
+  it("counts reactions by type", () => {
+    const reactions = [
+      { uid: "a", type: "noshot" as const },
+      { uid: "b", type: "noshot" as const },
+      { uid: "c", type: "cap" as const },
+    ];
+    expect(countReactions(reactions)).toEqual({ noshot: 2, lockit: 0, cap: 1 });
+    expect(countReactions([])).toEqual({ noshot: 0, lockit: 0, cap: 0 });
+  });
+
+  it("tapping picks, switches, or takes back your reaction", () => {
+    expect(tapReaction(null, "cap")).toBe("cap");
+    expect(tapReaction("cap", "lockit")).toBe("lockit");
+    expect(tapReaction("cap", "cap")).toBeNull();
+  });
+
+  it("comments need some text, up to 200 characters", () => {
+    expect(validateComment("he hasn't seen an 8am since September")).toBeNull();
+    expect(validateComment("   ")).toBe("Write something first");
+    expect(validateComment("x".repeat(200))).toBeNull();
+    expect(validateComment("x".repeat(201))).toBe("Keep it under 200 characters");
+    // spaces around it don't count
+    expect(validateComment("  " + "x".repeat(200) + "  ")).toBeNull();
   });
 });

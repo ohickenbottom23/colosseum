@@ -2,7 +2,9 @@ import Link from "next/link";
 import { callText, cardTimeText } from "@/format";
 import { picksCloseAt } from "@/lib/resolve";
 import { sideMultiplier } from "@/lib/ranks";
-import { Position, Prediction } from "@/lib/types";
+import { Position, Prediction, Reaction } from "@/lib/types";
+import { countReactions, REACTIONS } from "@/lib/trashTalk";
+import { CommentIcon } from "./ui/Icons";
 import Avatar, { Face } from "./ui/Avatar";
 import AvatarStack from "./ui/AvatarStack";
 import SplitBar from "./ui/SplitBar";
@@ -22,6 +24,8 @@ export default function CallCard({
   arenaName,
   note,
   now,
+  reactions = [],
+  commentCount = 0,
 }: {
   call: Prediction;
   positions: Position[];
@@ -30,7 +34,11 @@ export default function CallCard({
   arenaName: string;
   note?: string; // an extra bold line, like "You picked NO"
   now: number;
+  reactions?: Reaction[];
+  commentCount?: number;
 }) {
+  const counts = countReactions(reactions);
+  const hasTalk = reactions.length > 0 || commentCount > 0;
   const when = cardTimeText(picksCloseAt(call), call.deadline, now);
   const yes = positions.filter((p) => p.side === "yes");
   const no = positions.filter((p) => p.side === "no");
@@ -72,6 +80,22 @@ export default function CallCard({
               )}
             </div>
           </>
+        )}
+
+        {/* trash talk at a glance: reaction counts and how many comments */}
+        {call.text && hasTalk && (
+          <div className="call-talk">
+            {REACTIONS.filter((r) => counts[r.type] > 0).map((r) => (
+              <span key={r.type} className="talk-pill">
+                {r.label} {counts[r.type]}
+              </span>
+            ))}
+            {commentCount > 0 && (
+              <span className="talk-comments">
+                <CommentIcon /> {commentCount}
+              </span>
+            )}
+          </div>
         )}
 
         {note && <p className="call-mine">{note}</p>}

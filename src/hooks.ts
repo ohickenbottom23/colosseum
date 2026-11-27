@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, signOut, User as AuthUser } from "firebase/auth";
-import { collection, collectionGroup, doc, onSnapshot, query, where } from "firebase/firestore";
+import { collection, collectionGroup, doc, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "@/firebase";
-import { Arena, Position, User } from "@/lib/types";
+import { Arena, Comment, Position, Reaction, User } from "@/lib/types";
 
 // errors that mean the saved sign-in is dead (the account is gone, or the session was revoked).
 // Firebase keeps the user "signed in" anyway, so every read fails until we sign out ourselves.
@@ -166,4 +166,63 @@ export function useSeenResults(uid: string | null) {
   }, [uid]);
 
   return seen;
+}
+
+// the trash talk on one call (the call page), kept in sync. comments oldest first
+export function useTrashTalk(callId: string | null) {
+  const [reactions, setReactions] = useState<Reaction[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+
+  useEffect(() => {
+    if (!callId) return;
+    const stopReactions = onSnapshot(
+      collection(db, "predictions", callId, "reactions"),
+      (snap) => setReactions(snap.docs.map((d) => d.data() as Reaction)),
+      () => setReactions([])
+    );
+    const stopComments = onSnapshot(
+      query(collection(db, "predictions", callId, "comments"), orderBy("createdAt", "asc")),
+      (snap) =>
+        setComments(
+          snap.docs.map((d) => {
+            // a comment you just posted doesn't have the server's time yet, so use a guess until it does
+            const data = d.data({ serverTimestamps: "estimate" });
+            return { id: d.id, uid: data.uid, text: data.text, edited: data.edited, createdAt: data.createdAt?.toMillis?.() ?? Date.now() };
+          })
+        ),
+      () => setComments([])
+    );
+    return () => {
+      stopReactions();
+      stopComments();
+    };
+  }, [callId]);
+
+  return { reactions, comments };
+}
+
+// reactions and how many comments, for each call on home
+export function useTalkCounts(callIds: string[]) {
+  const [reactions, setReactions] = useState<Record<string, Reaction[]>>({});
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const key = callIds.join(",");
+
+  useEffect(() => {
+    if (!key) return;
+    const stops = key.split(",").flatMap((id) => [
+      onSnapshot(
+        collection(db, "predictions", id, "reactions"),
+        (snap) => setReactions((old) => ({ ...old, [id]: snap.docs.map((d) => d.data() as Reaction) })),
+        () => {}
+      ),
+      onSnapshot(
+        collection(db, "predictions", id, "comments"),
+        (snap) => setCommentCounts((old) => ({ ...old, [id]: snap.size })),
+        () => {}
+      ),
+    ]);
+    return () => stops.forEach((stop) => stop());
+  }, [key]);
+
+  return { reactions, commentCounts };
 }

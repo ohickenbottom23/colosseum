@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "@/firebase";
-import { useAuthUser, useCallPositions, useMyArenas, useMyPositions, usePlayer, usePlayers, useSeenResults } from "@/hooks";
+import { useAuthUser, useCallPositions, useMyArenas, useMyPositions, usePlayer, usePlayers, useSeenResults, useTalkCounts } from "@/hooks";
 import { resultLine } from "@/format";
 import { Prediction } from "@/lib/types";
 import { picksCloseAt } from "@/lib/resolve";
@@ -93,6 +93,8 @@ export default function Home() {
 
   // who picked what on every call on this screen, for the split bars and faces
   const positionsByCall = useCallPositions([...calls, ...recent].map((c) => c.id));
+  // and the trash talk on them, for the counts on each card
+  const talk = useTalkCounts([...calls, ...recent].map((c) => c.id));
 
   if (loading) return <main><p>Loading...</p></main>;
 
@@ -155,6 +157,8 @@ export default function Home() {
       arenaName={arenaName(c.arenaId)}
       note={note}
       now={now}
+      reactions={talk.reactions[c.id]}
+      commentCount={talk.commentCounts[c.id]}
     />
   );
 

@@ -149,6 +149,19 @@ describe("invite previews (seen before joining, even signed out)", { timeout: 30
     expect(JSON.stringify(res.result)).not.toContain("stake");
   });
 
+  it("counts the trash talk, without sending what anyone said", async () => {
+    const { inviteCode, callId, jake } = await setUp();
+    const write = (path: string, fields: object) =>
+      fetch(`${FIRESTORE}/${path}`, { method: "PATCH", headers: ADMIN, body: JSON.stringify({ fields }) });
+    await write(`predictions/${callId}/reactions/${jake.uid}`, { uid: { stringValue: jake.uid }, type: { stringValue: "cap" } });
+    await write(`predictions/${callId}/comments/c1`, { uid: { stringValue: jake.uid }, text: { stringValue: "secret trash talk" } });
+
+    const res = await callFunction("previewInvite", null, { code: inviteCode, callId });
+    expect(res.result.call.reactions).toBe(1);
+    expect(res.result.call.comments).toBe(1);
+    expect(JSON.stringify(res.result)).not.toContain("secret trash talk");
+  });
+
   it("an arena invite with no call just shows the arena", async () => {
     const { inviteCode } = await setUp();
     expect((await callFunction("previewInvite", null, { code: inviteCode })).result).toEqual({

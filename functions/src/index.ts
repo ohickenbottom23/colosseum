@@ -334,6 +334,11 @@ export const previewInvite = onCall(async (request) => {
 
   // names and photos for the faces on the screen. stakes stay private
   const positions = (await callSnap.ref.collection("positions").get()).docs.map((d) => d.data() as Position);
+  // just how much trash talk there is, not what anyone said
+  const [reactionCount, commentCount] = await Promise.all([
+    callSnap.ref.collection("reactions").count().get(),
+    callSnap.ref.collection("comments").count().get(),
+  ]);
   const uids = [...new Set([call.creatorId, ...(call.subjectId ? [call.subjectId] : []), ...positions.map((p) => p.uid)])];
   const users = await db.getAll(...uids.map((u) => db.doc(`users/${u}`)));
   const face = (u: string) => {
@@ -355,6 +360,8 @@ export const previewInvite = onCall(async (request) => {
       subject: call.subjectId ? face(call.subjectId) : null,
       yes: positions.filter((p) => p.side === "yes").map((p) => face(p.uid)),
       no: positions.filter((p) => p.side === "no").map((p) => face(p.uid)),
+      reactions: reactionCount.data().count,
+      comments: commentCount.data().count,
     },
   };
 });

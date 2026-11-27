@@ -42,3 +42,6 @@ export const RANKS = [
   { tier: 4, name: "Champion", floor: 400 },
   { tier: 5, name: "Legend", floor: 600 },
 ];
+
+// trash talk
+export const MAX_COMMENT = 200;

@@ -10,6 +10,7 @@ import SignInButton from "../../SignInButton";
 import SharedCallInvite, { InvitePreview } from "../../SharedCallInvite";
 import ShareButton from "../../ShareButton";
 import TakeDown from "../../TakeDown";
+import TrashTalk from "../../TrashTalk";
 import SplitBar from "../../ui/SplitBar";
 import AvatarStack from "../../ui/AvatarStack";
 import Avatar, { faceOf } from "../../ui/Avatar";
@@ -412,6 +413,8 @@ export default function CallPage() {
           <p className="muted small">You can&apos;t switch sides once you pick.</p>
         </div>
       )}
+      <TrashTalk callId={call.id} myUid={authUser.uid} faceFor={(u) => faceOf(u, players)} open={!!call.text} />
+
       {/* the person it's about can always take it down until it's settled */}
       {!canDelete(call, authUser.uid) && (
         <TakeDown

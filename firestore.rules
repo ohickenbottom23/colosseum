@@ -44,6 +44,51 @@ service cloud.firestore {
         allow read: if inArena(get(/databases/$(database)/documents/predictions/$(predictionId)).data.arenaId);
         allow write: if false;
       }
+
+      // ---------- trash talk ----------
+      // the one thing the app writes straight to Firestore, since it never touches glory or tokens.
+      // only arena members, only as yourself, and not on a call the subject took down (its text is wiped)
+
+      function theCall() {
+        return get(/databases/$(database)/documents/predictions/$(predictionId)).data;
+      }
+
+      function canTalk() {
+        return inArena(theCall().arenaId) && theCall().text != "";
+      }
+
+      // one reaction per person per call, saved under your own uid. pick, switch, or take it back
+      match /reactions/{uid} {
+        allow read: if inArena(theCall().arenaId);
+        allow create, update: if canTalk()
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(["uid", "type", "createdAt"])
+          && request.resource.data.uid == uid
+          && request.resource.data.type in ["noshot", "lockit", "cap"]
+          && request.resource.data.createdAt == request.time;
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
+
+      // short comments. you can edit or delete your own, nobody else's
+      match /comments/{commentId} {
+        allow read: if inArena(theCall().arenaId);
+        allow create: if canTalk()
+          && request.resource.data.keys().hasOnly(["uid", "text", "createdAt", "edited"])
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 200
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.edited == false;
+        allow update: if canTalk()
+          && resource.data.uid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["text", "edited"])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 200
+          && request.resource.data.edited == true;
+        allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      }
     }
 
     // lets the app find all of your own positions across every call at once

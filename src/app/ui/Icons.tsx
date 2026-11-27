@@ -64,3 +64,11 @@ export function WarningIcon({ size = 16 }: IconProps) {
     </svg>
   );
 }
+
+export function CommentIcon({ size = 14 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...stroke}>
+      <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
+    </svg>
+  );
+}
