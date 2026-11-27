@@ -1793,3 +1793,89 @@ button.chip.talk.on {
     animation: none;
   }
 }
+
+/* the crown over first place */
+.crown {
+  display: flex;
+  justify-content: center;
+  margin-bottom: -6px;
+}
+
+/* members panel on the leaderboard */
+.arena-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.arena-actions button.secondary {
+  width: 100%;
+}
+
+.members {
+  width: 100%;
+  padding: 14px;
+}
+
+.members-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.members-head h2 {
+  margin: 0;
+}
+
+.members ul {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.member-name {
+  flex: 1;
+  font-weight: 700;
+}
+
+.owner-tag {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--cream-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.confirm {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.confirm p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.leave-link {
+  margin-top: 4px;
+}

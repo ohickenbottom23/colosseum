@@ -72,3 +72,13 @@ export function CommentIcon({ size = 14 }: IconProps) {
     </svg>
   );
 }
+
+// the crown over first place. gold, since it's a rank thing
+export function CrownIcon({ size = 30 }: IconProps) {
+  return (
+    <svg width={size} height={size * 0.7} viewBox="0 0 30 21" aria-hidden="true">
+      <path d="M2 18 L4 5 L10 11 L15 2 L20 11 L26 5 L28 18 Z" fill="var(--gold)" />
+      <rect x="2" y="18" width="26" height="3" rx="1" fill="var(--gold)" />
+    </svg>
+  );
+}

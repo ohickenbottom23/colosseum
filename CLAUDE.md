@@ -47,6 +47,8 @@ Arenas
 - Glory, rank, tokens, and records belong to the person, not the arena. Each arena's leaderboard ranks its members.
 - A shared call link (`/call/{id}?i={inviteCode}`) is also an invite: signing in from it joins the arena and lands on that call. `/join/{inviteCode}` is a plain arena invite.
 - Making and joining arenas happens in Cloud Functions (`createArena`, `joinArena`). Signed-out previews of an invite go through `previewInvite`, which needs the invite code.
+- Anyone can leave (`leaveArena`). Only the owner (who made it) can remove people (`removeMember`), and removed people can't rejoin with the invite link (`removedIds`). If the owner leaves, whoever's been in longest becomes owner.
+- When someone leaves or is removed, open calls in that arena they made, or that are about them, are voided with everyone refunded (`member_left`, no missed resolve). Calls about them also get their text wiped. Their picks on other people's calls stay and settle normally.
 
 Tokens
 - 50 tokens a day, but the daily grant won't push you past 200

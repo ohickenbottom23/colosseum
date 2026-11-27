@@ -147,6 +147,11 @@ describe("arenas", () => {
     await assertFails(setDoc(doc(as("sam"), "arenas/mine"), { name: "Mine", memberIds: ["sam"], inviteCode: "q" }));
   });
 
+  it("you can't remove someone or take over an arena directly", async () => {
+    await assertFails(updateDoc(doc(as("maya"), "arenas/third"), { memberIds: ["maya"] }));
+    await assertFails(updateDoc(doc(as("jake"), "arenas/third"), { ownerId: "jake" }));
+  });
+
   it("members can't rename the arena or change its invite code directly", async () => {
     await assertFails(updateDoc(doc(as("maya"), "arenas/third"), { name: "Maya's" }));
     await assertFails(updateDoc(doc(as("maya"), "arenas/third"), { inviteCode: "new" }));

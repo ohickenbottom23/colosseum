@@ -346,3 +346,78 @@ describe("ranks move when a call is settled", { timeout: 60000 }, () => {
     expect(await rankOf(ctx.jake.uid)).toEqual({ glory: 147, rankTier: 2, onTheLine: true });
   });
 });
+
+// ---------- leaving and removing ----------
+
+async function callStatus(callId: string) {
+  const f = (await readDoc(`predictions/${callId}`)).fields;
+  return { status: f.status.stringValue, voidReason: f.voidReason?.stringValue ?? null, text: f.text.stringValue };
+}
+
+describe("leaving and removing", { timeout: 60000 }, () => {
+  it("leaving takes you off both lists and voids your calls and calls about you, refunding everyone", async () => {
+    const ctx = await setUp(); // maya made the arena and a call backing YES with 10, jake joined
+    const base = { arenaId: ctx.arenaId, deadline: Date.now() + DAY };
+
+    // a call jake made (maya backs NO on it), one maya made about jake, and jake on maya's first call
+    const byJake = (await callFunction("createCall", ctx.jake.token, { ...base, text: "It rains", subjectLabel: "weather", side: "yes", stake: 10 })).result.id;
+    await callFunction("takeSide", ctx.maya.token, { predictionId: byJake, side: "no", stake: 10 });
+    const aboutJake = (await callFunction("createCall", ctx.maya.token, { ...base, text: "Jake oversleeps", subjectId: ctx.jake.uid, side: "yes", stake: 10 })).result.id;
+    await callFunction("takeSide", ctx.jake.token, { predictionId: ctx.callId, side: "no", stake: 5 });
+    expect(await tokensOf(ctx.maya.uid)).toBe(20);
+    expect(await tokensOf(ctx.jake.uid)).toBe(35);
+
+    const res = await callFunction("leaveArena", ctx.jake.token, { arenaId: ctx.arenaId });
+    expect(res).toEqual({ result: { voided: 2 } });
+
+    expect(await membersOf(ctx.arenaId)).toEqual([ctx.maya.uid]);
+    expect(await arenaIdsOf(ctx.jake.uid)).toEqual([]);
+
+    // his call is voided (text kept), the one about him is voided with the text wiped
+    expect(await callStatus(byJake)).toEqual({ status: "void", voidReason: "member_left", text: "It rains" });
+    expect(await callStatus(aboutJake)).toEqual({ status: "void", voidReason: "member_left", text: "" });
+    // maya's own call is untouched, and jake's pick on it stays
+    expect((await callStatus(ctx.callId)).status).toBe("open");
+    expect(await readDoc(`predictions/${ctx.callId}/positions/${ctx.jake.uid}`)).not.toBeNull();
+
+    // refunds: maya gets her 10 on each voided call back, jake his 10 on his own call
+    expect(await tokensOf(ctx.maya.uid)).toBe(40);
+    expect(await tokensOf(ctx.jake.uid)).toBe(45);
+    // and nobody gets a missed settle for it
+    const missed = (uid: string) => readDoc(`users/${uid}`).then((d) => Number(d.fields.missedResolves.integerValue));
+    expect(await missed(ctx.maya.uid)).toBe(0);
+    expect(await missed(ctx.jake.uid)).toBe(0);
+  });
+
+  it("if the owner leaves, the arena goes to whoever's been in longest", async () => {
+    const ctx = await setUp();
+    await callFunction("leaveArena", ctx.maya.token, { arenaId: ctx.arenaId });
+    expect((await readDoc(`arenas/${ctx.arenaId}`)).fields.ownerId.stringValue).toBe(ctx.jake.uid);
+  });
+
+  it("the owner can remove someone, and they can't rejoin with the invite link", async () => {
+    const ctx = await setUp();
+    expect(await callFunction("removeMember", ctx.maya.token, { arenaId: ctx.arenaId, uid: ctx.jake.uid })).toEqual({ result: { voided: 0 } });
+    expect(await membersOf(ctx.arenaId)).toEqual([ctx.maya.uid]);
+    expect(await arenaIdsOf(ctx.jake.uid)).toEqual([]);
+    expect(await callFunction("joinArena", ctx.jake.token, { code: ctx.inviteCode })).toEqual({ error: "You were removed from this arena" });
+  });
+
+  it("only the owner can remove people, and not themselves", async () => {
+    const ctx = await setUp();
+    expect(await callFunction("removeMember", ctx.jake.token, { arenaId: ctx.arenaId, uid: ctx.maya.uid })).toEqual({
+      error: "Only the person who made the arena can remove people",
+    });
+    expect(await callFunction("removeMember", ctx.maya.token, { arenaId: ctx.arenaId, uid: ctx.maya.uid })).toEqual({
+      error: "To take yourself out, leave the arena instead",
+    });
+    expect(await membersOf(ctx.arenaId)).toEqual([ctx.maya.uid, ctx.jake.uid]);
+  });
+
+  it("you can't leave an arena you're not in", async () => {
+    const ctx = await setUp();
+    const sam = await newPlayer("Sam");
+    expect(await callFunction("leaveArena", sam.token, { arenaId: ctx.arenaId })).toEqual({ error: "You're not in this arena" });
+    expect(await callFunction("leaveArena", null, { arenaId: ctx.arenaId })).toEqual({ error: "Sign in first" });
+  });
+});

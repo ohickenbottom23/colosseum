@@ -6,7 +6,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { START_GLORY, START_TOKENS } from "../../src/lib/constants";
 import { Arena, Payout, Position, Prediction, RankResult, Side, User, VoidReason } from "../../src/lib/types";
 import { nextRankState, tierForGlory } from "../../src/lib/ranks";
-import { canJoinArena, canMakeArena, isMember, validateArenaName } from "../../src/lib/arenas";
+import { canJoinArena, canLeaveArena, canMakeArena, canRemoveMember, isMember, ownerAfterLeaving, validateArenaName } from "../../src/lib/arenas";
 import {
   applyPayout,
   canDelete,
@@ -515,6 +515,78 @@ export const deleteCall = onCall(async (request) => {
   });
 
   return { ok: true };
+});
+
+// ---------- leaving and removing ----------
+
+// take someone out of an arena: off both lists in one transaction, ownership handed on if the
+// owner left. then the open calls they made or that are about them get voided (refunding
+// everyone), since nobody could settle them or the person they're about isn't there anymore
+async function takeOutOfArena(arenaId: string, targetUid: string, byUid: string, removing: boolean) {
+  const arenaRef = db.doc(`arenas/${arenaId}`);
+  const userRef = db.doc(`users/${targetUid}`);
+
+  await db.runTransaction(async (tx) => {
+    const arenaSnap = await tx.get(arenaRef);
+    if (!arenaSnap.exists) throw new HttpsError("not-found", "That arena doesn't exist");
+    const arena = arenaSnap.data() as Arena;
+
+    const problem = removing ? canRemoveMember(arena, byUid, targetUid) : canLeaveArena(arena, targetUid);
+    if (problem) throw new HttpsError("failed-precondition", problem);
+
+    const arenaUpdate: Record<string, unknown> = { memberIds: FieldValue.arrayRemove(targetUid) };
+    const owner = ownerAfterLeaving(arena, targetUid);
+    if (owner) arenaUpdate.ownerId = owner;
+    if (removing) arenaUpdate.removedIds = FieldValue.arrayUnion(targetUid);
+    tx.update(arenaRef, arenaUpdate);
+    tx.update(userRef, { arenaIds: FieldValue.arrayRemove(arenaId) });
+  });
+
+  const open = await db.collection("predictions").where("arenaId", "==", arenaId).where("status", "==", "open").get();
+  let voided = 0;
+  for (const doc of open.docs) {
+    const p = doc.data() as Prediction;
+    if (p.creatorId !== targetUid && p.subjectId !== targetUid) continue;
+
+    // each in its own transaction, checking it's still open
+    const did = await db.runTransaction(async (tx) => {
+      const call = await loadCall(tx, doc.ref);
+      if (!call || call.prediction.status !== "open") return false;
+      // a call about someone who's gone gets its text wiped, like when they take it down
+      const about = call.prediction.subjectId === targetUid;
+      finishCall(tx, doc.ref, call, refundAll(call.positions), false, {
+        status: "void",
+        voidReason: "member_left",
+        ...(about ? { text: "" } : {}),
+      });
+      return true;
+    });
+    if (did) voided++;
+  }
+  return voided;
+}
+
+function cleanArenaId(id: unknown): string {
+  if (typeof id !== "string" || !id || id.includes("/")) throw new HttpsError("invalid-argument", "That arena doesn't exist");
+  return id;
+}
+
+// leave an arena you're in
+export const leaveArena = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first");
+  const arenaId = cleanArenaId(request.data?.arenaId);
+  const voided = await takeOutOfArena(arenaId, request.auth.uid, request.auth.uid, false);
+  return { voided };
+});
+
+// the owner removes someone. they can't rejoin with the invite link
+export const removeMember = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first");
+  const arenaId = cleanArenaId(request.data?.arenaId);
+  const target = request.data?.uid;
+  if (typeof target !== "string" || !target || target.includes("/")) throw new HttpsError("invalid-argument", "Pick someone");
+  const voided = await takeOutOfArena(arenaId, target, request.auth.uid, true);
+  return { voided };
 });
 
 // ---------- voiding calls nobody settled ----------

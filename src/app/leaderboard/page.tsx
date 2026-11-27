@@ -11,9 +11,11 @@ import { User } from "@/lib/types";
 import TabBar from "../TabBar";
 import ShareButton from "../ShareButton";
 import NewArenaForm from "../NewArenaForm";
+import MembersPanel from "../MembersPanel";
 import Avatar from "../ui/Avatar";
 import AvatarStack from "../ui/AvatarStack";
 import RankShield from "../ui/RankShield";
+import { CrownIcon } from "../ui/Icons";
 
 const NUMERALS = ["I", "II", "III", "IV", "V"];
 
@@ -83,6 +85,11 @@ function Leaderboard() {
         <div className="podium">
           {podiumOrder.map((r) => (
             <div key={r.user.uid} className={`podium-spot place-${podium.indexOf(r) + 1}`}>
+              {podium.indexOf(r) === 0 && (
+                <span className="crown">
+                  <CrownIcon />
+                </span>
+              )}
               <div className="podium-face">
                 <Avatar face={faceOfUser(r.user)} size={podium.indexOf(r) === 0 ? 84 : 66} />
                 <span className="podium-shield">
@@ -148,6 +155,7 @@ function Leaderboard() {
 
       {arena && (
         <div className="arena-actions">
+          <MembersPanel arena={arena} players={players} myUid={authUser.uid} onLeft={() => setArenaId("")} />
           <ShareButton
             url={arenaInviteUrl(window.location.origin, arena.inviteCode)}
             text={`Join ${arena.name} on Colosseum`}

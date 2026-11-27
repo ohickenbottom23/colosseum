@@ -44,6 +44,7 @@ export function voidReasonText(reason: string | null, creatorName: string): stri
   if (reason === "not_resolved") return `${creatorName} didn't settle it in time.`;
   if (reason === "subject_killed") return "The person it was about took it down.";
   if (reason === "tied_vote") return "The vote came out even.";
+  if (reason === "member_left") return "Someone it depended on left the arena.";
   return "It didn't count.";
 }
 

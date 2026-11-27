@@ -27,7 +27,7 @@ import {
   previewIfRight,
 } from "./resolve";
 import { deadlineFromPreset, validateNewCall, NewCall } from "./calls";
-import { validateArenaName, isMember, canJoinArena, canMakeArena } from "./arenas";
+import { validateArenaName, isMember, canJoinArena, canMakeArena, canLeaveArena, canRemoveMember, ownerAfterLeaving } from "./arenas";
 import { REACTIONS, countReactions, tapReaction, validateComment, isReactionType } from "./trashTalk";
 import { tierForGlory, rankName, progressToNext, nextRankState, rankOutlook, sideMultiplier, formatMultiplier } from "./ranks";
 
@@ -676,5 +676,34 @@ describe("trash talk", () => {
     expect(validateComment("x".repeat(201))).toBe("Keep it under 200 characters");
     // spaces around it don't count
     expect(validateComment("  " + "x".repeat(200) + "  ")).toBeNull();
+  });
+});
+
+describe("leaving and removing", () => {
+  const arena = { ownerId: "maya", memberIds: ["maya", "jake", "sam"] };
+
+  it("anyone in it can leave", () => {
+    expect(canLeaveArena(arena, "jake")).toBeNull();
+    expect(canLeaveArena(arena, "maya")).toBeNull();
+    expect(canLeaveArena(arena, "riley")).toBe("You're not in this arena");
+  });
+
+  it("only the owner can remove people, and not themselves", () => {
+    expect(canRemoveMember(arena, "maya", "jake")).toBeNull();
+    expect(canRemoveMember(arena, "jake", "sam")).toBe("Only the person who made the arena can remove people");
+    expect(canRemoveMember(arena, "maya", "maya")).toBe("To take yourself out, leave the arena instead");
+    expect(canRemoveMember(arena, "maya", "riley")).toBe("They're not in this arena");
+  });
+
+  it("if the owner leaves, whoever's been in longest takes over", () => {
+    expect(ownerAfterLeaving(arena, "jake")).toBe("maya");
+    expect(ownerAfterLeaving(arena, "maya")).toBe("jake");
+    expect(ownerAfterLeaving({ ownerId: "maya", memberIds: ["maya"] }, "maya")).toBeNull();
+  });
+
+  it("someone the owner removed can't rejoin with the invite link", () => {
+    const after = { memberIds: ["maya", "sam"], removedIds: ["jake"] };
+    expect(canJoinArena(after, "jake", [])).toBe("You were removed from this arena");
+    expect(canJoinArena(after, "riley", [])).toBeNull();
   });
 });

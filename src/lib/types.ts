@@ -17,7 +17,8 @@ export type VoidReason =
   | "no_takers" // nobody but the creator joined
   | "not_resolved" // creator missed the 48 hour window
   | "subject_killed" // the person it was about deleted it
-  | "tied_vote"; // dispute vote came out even
+  | "tied_vote" // dispute vote came out even
+  | "member_left"; // the person who made it, or the person it was about, left the arena
 
 export interface User {
   uid: string;
@@ -45,6 +46,7 @@ export interface Arena {
   memberIds: string[];
   inviteCode: string; // goes in invite links. any member can share it
   createdAt: number;
+  removedIds?: string[]; // people the owner removed. they can't rejoin with the invite link
 }
 
 export interface Prediction {

@@ -13,7 +13,7 @@ export default function InviteSteps() {
           <span className="step">3</span> Be right, earn Glory, run the arena
         </li>
       </ol>
-      <p className="how-note">No money, ever. Tokens are free and can&apos;t be bought.</p>
+      <p className="how-note">Glory is your record for being right. Nobody can buy it.</p>
     </div>
   );
 }

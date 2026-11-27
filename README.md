@@ -64,3 +64,19 @@ npm run test:functions
 - 50 tokens a day, won't push you past 200.
 - Voids if nobody but the creator joined, if the creator doesn't resolve within 48 hours, or if a dispute vote ties.
 - You can't make a call about yourself, but you can pick a side on one about you.
+
+## Deploying
+
+Everything so far runs on the emulators with a fake `demo-colosseum` project. To put it on a real one:
+
+1. Make a Firebase project on the Blaze plan (Cloud Functions and the 15 minute scheduled sweep need it). Turn on Authentication with Google, and Firestore.
+2. Add it to `.firebaserc`, and make a `.env.local` (or your host's env settings) with the real values from the project settings:
+   - `NEXT_PUBLIC_FIREBASE_API_KEY` and `NEXT_PUBLIC_FIREBASE_PROJECT_ID` from the project
+   - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` set to **the app's own domain** (like `colosseum.web.app` or your custom domain), not `<project>.firebaseapp.com`
+   - `NEXT_PUBLIC_USE_EMULATORS=false`
+3. Why the auth domain matters: phones sign in with a redirect, and browsers block it when the auth domain is a different site from the app, so people come back from Google not signed in. `next.config.ts` passes `/__/auth/...` on the app's domain through to Firebase's sign-in pages, which is what makes using the app's domain work.
+4. In the Firebase console, add the app's domain under Authentication > Settings > Authorized domains.
+5. In Google Cloud console > APIs & Services > Credentials, open the project's OAuth web client and add `https://<app domain>/__/auth/handler` as an authorized redirect URI.
+6. Deploy the backend: `firebase deploy --only firestore:rules,firestore:indexes,functions`
+7. Host the Next.js app (Firebase App Hosting, or any Next.js host), with the env values from step 2.
+8. Check sign-in on a real phone, since that's the redirect path.
