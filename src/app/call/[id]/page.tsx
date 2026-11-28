@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { collection, doc, onSnapshot } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/firebase";
 import Landing from "../../Landing";
-import SharedCallInvite, { InvitePreview } from "../../SharedCallInvite";
+import SharedCallInvite from "../../SharedCallInvite";
 import ShareButton from "../../ShareButton";
 import TakeDown from "../../TakeDown";
 import TrashTalk from "../../TrashTalk";
@@ -23,7 +23,7 @@ import { callInviteUrl, callText, dayText, formatGlory, picksCloseText, resultLi
 import { canDelete, canResolve, canTakeSide, picksCloseAt, previewIfRight } from "@/lib/resolve";
 import { DAILY_TOKENS, RESOLVE_WINDOW_MS } from "@/lib/constants";
 import { formatMultiplier, rankOutlook, sideMultiplier, tierForGlory } from "@/lib/ranks";
-import { Arena, Position, Prediction, Side } from "@/lib/types";
+import { Arena, Position, Prediction, PublicPreview, Side } from "@/lib/types";
 
 
 export default function CallPage() {
@@ -42,8 +42,12 @@ export default function CallPage() {
   // with an invite code we join the arena first, then load the call
   const [joined, setJoined] = useState(!inviteCode);
   const [joinError, setJoinError] = useState("");
-  // what a signed out person sees from a shared link, before they join
-  const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
+  // what a signed out person sees from a shared link, before they join: the call's public
+  // preview (only open calls have one), and the arena's name from the invite code
+  const [publicPreview, setPublicPreview] = useState<PublicPreview | null>(null);
+  const [inviteArena, setInviteArena] = useState<string | null>(null);
+  const [previewChecked, setPreviewChecked] = useState(false);
+  const [arenaChecked, setArenaChecked] = useState(false);
   const [arena, setArena] = useState<Arena | null>(null);
 
   const [call, setCall] = useState<Prediction | null>(null);
@@ -61,13 +65,24 @@ export default function CallPage() {
   const [settling, setSettling] = useState(false);
 
 
-  // signed out with an invite: show the arena and the call so they know what they're joining
+  // signed out: show the call from its public preview so they know what they're joining.
+  // the rules let anyone read a preview, but never the call itself
   useEffect(() => {
-    if (loading || authUser || !inviteCode) return;
-    httpsCallable<{ code: string; callId: string }, InvitePreview>(functions, "previewInvite")({ code: inviteCode, callId: id })
-      .then((res) => setInvitePreview(res.data))
-      .catch(() => setInvitePreview(null));
-  }, [loading, authUser, inviteCode, id]);
+    if (loading || authUser) return;
+    getDoc(doc(db, "previews", id))
+      .then((snap) => setPublicPreview(snap.exists() ? (snap.data() as PublicPreview) : null))
+      .catch(() => setPublicPreview(null))
+      .finally(() => setPreviewChecked(true));
+  }, [loading, authUser, id]);
+
+  // no preview (the call's settled) but the link is still an invite: show the arena instead
+  useEffect(() => {
+    if (loading || authUser || !inviteCode || !previewChecked || publicPreview) return;
+    httpsCallable<{ code: string }, { arena: { name: string } }>(functions, "previewInvite")({ code: inviteCode })
+      .then((res) => setInviteArena(res.data.arena.name))
+      .catch(() => setInviteArena(null))
+      .finally(() => setArenaChecked(true));
+  }, [loading, authUser, inviteCode, previewChecked, publicPreview]);
 
   // signed in with an invite: join the arena (does nothing if you're already in it), then drop
   // the code from the address bar so a refresh doesn't do it again
@@ -123,7 +138,12 @@ export default function CallPage() {
     );
   }
   // opened a shared link while signed out. sign in right here so they stay on this call
-  if (!loading && !authUser && invitePreview) return <SharedCallInvite preview={invitePreview} />;
+  if (!loading && !authUser && publicPreview) {
+    return <SharedCallInvite arenaName={publicPreview.arenaName} preview={publicPreview} canJoin={!!inviteCode} />;
+  }
+  if (!loading && !authUser && inviteArena) return <SharedCallInvite arenaName={inviteArena} preview={null} canJoin />;
+  // still looking those up
+  if (!loading && !authUser && (!previewChecked || (inviteCode && !arenaChecked))) return <main><p>Loading...</p></main>;
   // signed out and the call can't be previewed (an old or broken link): the plain landing
   if (!loading && !authUser) return <Landing tagline="A friend sent you a call. Sign in to see it and pick a side." />;
   if (!authUser || !call) return <main><p>Loading...</p></main>;

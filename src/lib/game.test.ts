@@ -31,6 +31,7 @@ import { validateArenaName, isMember, canJoinArena, canMakeArena, canLeaveArena,
 import { REACTIONS, validateComment, isReactionType, canQuickReact, talkLines, lineUids, joinNames } from "./trashTalk";
 import { canDispute, openingVotes, canVote, voteIsOver, disputeResult, payoutsAfterFlip, redoResult } from "./disputes";
 import { playerAfter } from "./resolve";
+import { buildPreview } from "./previews";
 import { tierForGlory, rankName, progressToNext, nextRankState, rankOutlook, sideMultiplier, formatMultiplier } from "./ranks";
 
 // little helpers so tests are shorter
@@ -893,5 +894,48 @@ describe("disputing a settled call", () => {
     const spent = { ...after.player, tokens: 5 }; // spent 35 of the 40 since
     const loss = { uid: "jake", tokenChange: 0, gloryChange: -10, won: false };
     expect(redoResult(spent, { result: win, rankResult: after.rankResult! }, loss).player.tokens).toBe(0);
+  });
+});
+
+describe("public previews of shared calls", () => {
+  const open = makePrediction({ text: "Owen hits the gym 4 times this week", subjectId: "owen" });
+  const positions = [pos("maya", "yes", 10), pos("jake", "no", 5)];
+  const users = new Map([
+    ["owen", { displayName: "Owen Park", photoURL: "https://photo/owen" }],
+    ["maya", { displayName: "Maya Lee", photoURL: null }],
+    ["jake", { displayName: "Jake Kim", photoURL: null }],
+  ]);
+  const thread = [{ reaction: "cap" as const }, {}, {}];
+
+  it("has the arena, the call, first names and faces, multipliers, and talk counts", () => {
+    expect(buildPreview(open, "Third Floor", positions, users, thread)).toEqual({
+      arenaName: "Third Floor",
+      text: "Owen hits the gym 4 times this week",
+      subject: { uid: "owen", name: "Owen", photoURL: "https://photo/owen" },
+      subjectLabel: null,
+      yes: { faces: [{ uid: "maya", name: "Maya", photoURL: null }], multiplier: 1.5 },
+      no: { faces: [{ uid: "jake", name: "Jake", photoURL: null }], multiplier: 3 },
+      reactions: 1,
+      comments: 2,
+    });
+  });
+
+  it("never has stakes, the creator, or anything anyone said", () => {
+    const preview = JSON.stringify(buildPreview(open, "Third Floor", positions, users, thread));
+    expect(preview).not.toContain("stake");
+    expect(preview).not.toContain("creator");
+    expect(preview).not.toContain("Lee"); // first names only
+  });
+
+  it("a call about a thing shows the label instead of a person", () => {
+    const weather = { ...open, subjectId: null, subjectLabel: "the weather" };
+    expect(buildPreview(weather, "Third Floor", [], users, [])).toMatchObject({ subject: null, subjectLabel: "the weather" });
+  });
+
+  it("only open calls get one, not settled, disputed, voided, or taken down", () => {
+    expect(buildPreview({ ...open, status: "resolved", outcome: "yes" }, "Third Floor", positions, users, [])).toBeNull();
+    expect(buildPreview({ ...open, status: "disputed" }, "Third Floor", positions, users, [])).toBeNull();
+    expect(buildPreview({ ...open, status: "void" }, "Third Floor", positions, users, [])).toBeNull();
+    expect(buildPreview({ ...open, text: "" }, "Third Floor", positions, users, [])).toBeNull();
   });
 });

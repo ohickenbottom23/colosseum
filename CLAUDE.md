@@ -51,7 +51,8 @@ Arenas
 - Arena membership replaces the friends list. There's no "all friends" posting.
 - Glory, rank, tokens, and records belong to the person, not the arena. Each arena's leaderboard ranks its members.
 - A shared call link (`/call/{id}?i={inviteCode}`) is also an invite: signing in from it joins the arena and lands on that call. `/join/{inviteCode}` is a plain arena invite.
-- Making and joining arenas happens in Cloud Functions (`createArena`, `joinArena`). Signed-out previews of an invite go through `previewInvite`, which needs the invite code.
+- Making and joining arenas happens in Cloud Functions (`createArena`, `joinArena`). A signed-out arena invite shows the arena through `previewInvite`, which needs the invite code.
+- A signed-out call link shows the call from its public preview, `previews/{callId}`: arena name, call text, the subject's first name and avatar (or the label), each side's faces (first names) and multiplier, and reaction and comment counts. Nothing else: no stakes, creator, invite code, or what anyone said. Cloud Functions (`previewOnCall`, `previewOnSide`, `previewOnTalk`) rebuild it whenever the call, its sides, or its trash talk change, and remove it once the call isn't open (settled, disputed, voided, or taken down). Anyone can read one by id, nobody can list them, and the call itself stays members-only.
 - Anyone can leave (`leaveArena`). Only the owner (who made it) can remove people (`removeMember`), and removed people can't rejoin with the invite link (`removedIds`). If the owner leaves, whoever's been in longest becomes owner.
 - When someone leaves or is removed, open calls in that arena they made, or that are about them, are voided with everyone refunded (`member_left`, no missed resolve). Calls about them also get their text wiped. Their picks on other people's calls stay and settle normally.
 

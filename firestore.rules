@@ -95,6 +95,15 @@ service cloud.firestore {
       }
     }
 
+    // the public preview of an open call, for people who open a shared link before signing in.
+    // anyone can read one if they have the call's id (it's in the link), but nobody can list them,
+    // and only Cloud Functions write them. it has only what the shared-link screen shows,
+    // so the call itself stays members-only
+    match /previews/{callId} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
     // lets the app find all of your own positions across every call at once
     match /{path=**}/positions/{uid} {
       allow read: if signedIn() && resource.data.uid == request.auth.uid;

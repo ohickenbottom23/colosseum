@@ -1,84 +1,85 @@
-import { picksCloseText } from "@/format";
-import { Face } from "./ui/Avatar";
+import { PublicPreview } from "@/lib/types";
+import Avatar from "./ui/Avatar";
 import AvatarStack from "./ui/AvatarStack";
 import SplitBar from "./ui/SplitBar";
 import SignInButton from "./SignInButton";
 import InviteSteps from "./InviteSteps";
 
-// what previewInvite sends back for a call
-export type InvitePreview = {
-  arena: { name: string; memberCount: number };
-  call: {
-    id: string;
-    text: string;
-    status: string;
-    createdAt: number;
-    deadline: number;
-    subjectLabel: string | null;
-    creator: Face & { name: string };
-    subject: (Face & { name: string }) | null;
-    yes: Face[];
-    no: Face[];
-    messages: number; // trash talk, comments and quick reactions together
-  } | null;
-};
-
 // a shared call link, opened by someone who's signed out (probably from a group chat).
-// shows the call and who's on which side, then "Join [arena] with Google"
-export default function SharedCallInvite({ preview }: { preview: InvitePreview }) {
-  const { arena, call } = preview;
-  const people = `${arena.memberCount} ${arena.memberCount === 1 ? "person" : "people"}`;
-  const first = (f: Face) => f.name.split(" ")[0];
-
+// shows the call from its public preview (previews/{callId}), then "Join [arena] with Google".
+// if the call has no preview anymore (it's settled), it's just the arena
+export default function SharedCallInvite({
+  arenaName,
+  preview,
+  canJoin,
+}: {
+  arenaName: string;
+  preview: PublicPreview | null;
+  canJoin: boolean; // the link has the arena's invite code, so signing in joins it
+}) {
   // one line to pull them in
-  let hook = "";
-  if (call) {
-    const { yes, no } = call;
-    if (yes.length + no.length === 0) hook = "Nobody's picked a side yet. Be first.";
-    else if (no.length === 1 && yes.length > 1) hook = `${first(no[0])} is the only one saying no. Think they're right?`;
-    else if (yes.length === 1 && no.length > 1) hook = `${first(yes[0])} is the only one saying yes. Think they're right?`;
-    else hook = `${yes.length} ${yes.length === 1 ? "says" : "say"} yes, ${no.length} ${no.length === 1 ? "says" : "say"} no. Where are you?`;
+  let hook = "Your friends are making calls about each other. Get in and pick a side.";
+  if (preview) {
+    const { yes, no } = preview;
+    if (yes.faces.length + no.faces.length === 0) hook = "Nobody's picked a side yet. Be first.";
+    else if (no.faces.length === 1 && yes.faces.length > 1) hook = `${no.faces[0].name} is the only one saying no. Think they're right?`;
+    else if (yes.faces.length === 1 && no.faces.length > 1) hook = `${yes.faces[0].name} is the only one saying yes. Think they're right?`;
+    else {
+      const says = (n: number) => `${n} ${n === 1 ? "says" : "say"}`;
+      hook = `${says(yes.faces.length)} yes, ${says(no.faces.length)} no. Where are you?`;
+    }
   }
 
-  // the half way point, when picks close (same math as the app uses)
-  const closeAt = call ? call.createdAt + Math.floor((call.deadline - call.createdAt) / 2) : 0;
+  // the split bar sizes each side by its share of the pot, which is 1 / its multiplier
+  const share = (m: number | null) => (m ? 1 / m : 0);
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
   return (
     <main className="invite">
       <h1 className="wordmark">Colosseum</h1>
-      <p className="arena-tag">
-        {arena.name} arena · {people}
-      </p>
+      <p className="arena-tag">{arenaName} arena</p>
 
-      {call && (
+      {preview && (
         <>
           <div className="invite-who">
-            <AvatarStack faces={[call.creator, ...(call.subject ? [call.subject] : [])]} size={34} />
-            <span>
-              {first(call.creator)} made a call{call.subject ? ` about ${first(call.subject)}` : ""}
-            </span>
+            {preview.subject ? (
+              <>
+                <Avatar face={preview.subject} size={34} />
+                <span>A call about {preview.subject.name}</span>
+              </>
+            ) : (
+              <>
+                <Avatar face={{ uid: `label:${preview.subjectLabel}`, name: preview.subjectLabel ?? "?", photoURL: null }} size={34} />
+                <span>A call about {preview.subjectLabel}</span>
+              </>
+            )}
           </div>
 
           <div className="card invite-call">
-            <p className="invite-call-text">{call.text}</p>
-            <SplitBar yesCount={call.yes.length} noCount={call.no.length} />
+            <p className="invite-call-text">{preview.text}</p>
+            <SplitBar
+              yesCount={preview.yes.faces.length}
+              noCount={preview.no.faces.length}
+              yesTokens={share(preview.yes.multiplier)}
+              noTokens={share(preview.no.multiplier)}
+              yesMultiplier={preview.yes.multiplier}
+              noMultiplier={preview.no.multiplier}
+            />
             <div className="call-people">
-              <AvatarStack faces={call.yes} size={26} ring="var(--cream)" />
-              <AvatarStack faces={call.no} size={26} ring="var(--cream)" />
+              <AvatarStack faces={preview.yes.faces} size={26} ring="var(--cream)" />
+              <AvatarStack faces={preview.no.faces} size={26} ring="var(--cream)" />
             </div>
             <div className="invite-call-foot">
               <span>
-                <strong>{call.messages}</strong> {call.messages === 1 ? "message" : "messages"} of trash talk
+                <strong>{plural(preview.reactions, "reaction")}</strong> · <strong>{plural(preview.comments, "comment")}</strong>
               </span>
-              {call.status === "open" && <span className="invite-call-closes">{picksCloseText(closeAt, Date.now())}</span>}
             </div>
           </div>
-
-          <p className="invite-hook">{hook}</p>
         </>
       )}
 
-      <SignInButton label={`Join ${arena.name} with Google`} />
+      <p className="invite-hook">{hook}</p>
+      <SignInButton label={canJoin ? `Join ${arenaName} with Google` : "Sign in with Google"} />
       <InviteSteps />
     </main>
   );

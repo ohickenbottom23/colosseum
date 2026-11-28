@@ -372,6 +372,32 @@ describe("trash talk", () => {
   });
 });
 
+describe("public previews of shared calls", () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "previews/p1"), { arenaName: "Third Floor", text: "Jake skips class" });
+    });
+  });
+
+  it("a signed-out person can read a call's preview, but not the call itself", async () => {
+    await assertSucceeds(getDoc(doc(signedOut(), "previews/p1")));
+    await assertFails(getDoc(doc(signedOut(), "predictions/p1")));
+    await assertFails(getDocs(collection(signedOut(), "predictions/p1/positions")));
+    await assertFails(getDocs(collection(signedOut(), "predictions/p1/comments")));
+  });
+
+  it("nobody can list every preview to go looking for calls", async () => {
+    await assertFails(getDocs(collection(signedOut(), "previews")));
+    await assertFails(getDocs(collection(as("maya"), "previews")));
+  });
+
+  it("only Cloud Functions write previews", async () => {
+    await assertFails(setDoc(doc(signedOut(), "previews/p2"), { arenaName: "Fake", text: "made up" }));
+    await assertFails(setDoc(doc(as("maya"), "previews/p1"), { arenaName: "Third Floor", text: "edited" }));
+    await assertFails(deleteDoc(doc(as("maya"), "previews/p1")));
+  });
+});
+
 describe("everything else", () => {
   it("is locked until we build it", async () => {
     await assertFails(setDoc(doc(as("maya"), "groups/g1"), { name: "hi" }));

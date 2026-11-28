@@ -113,3 +113,22 @@ export interface Comment {
   createdAt: number; // millis, from the server's clock
   edited: boolean;
 }
+
+// previews/{callId}: what anyone with a shared call link can see before signing in.
+// written only by Cloud Functions, only while the call is open, and with only these fields
+export interface PreviewFace {
+  uid: string; // so a face with no photo gets its usual color
+  name: string; // first name only
+  photoURL: string | null;
+}
+
+export interface PublicPreview {
+  arenaName: string;
+  text: string;
+  subject: PreviewFace | null; // the person it's about
+  subjectLabel: string | null; // or the thing it's about, like "the weather"
+  yes: { faces: PreviewFace[]; multiplier: number | null };
+  no: { faces: PreviewFace[]; multiplier: number | null };
+  reactions: number;
+  comments: number;
+}

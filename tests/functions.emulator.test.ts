@@ -134,47 +134,87 @@ describe("arenas", { timeout: 30000 }, () => {
   });
 });
 
-describe("invite previews (seen before joining, even signed out)", { timeout: 30000 }, () => {
-  it("shows the arena and the call with the right code", async () => {
-    const { inviteCode, callId, maya, jake } = await setUp();
-    await callFunction("takeSide", jake.token, { predictionId: callId, side: "no", stake: 5 });
-
-    const res = await callFunction("previewInvite", null, { code: inviteCode, callId });
-    expect(res.result.arena).toEqual({ name: "Third Floor", memberCount: 2 });
-    expect(res.result.call.text).toBe("It snows this weekend");
-    expect(res.result.call.creator.uid).toBe(maya.uid);
-    expect(res.result.call.yes.map((f: { uid: string }) => f.uid)).toEqual([maya.uid]);
-    expect(res.result.call.no.map((f: { uid: string }) => f.uid)).toEqual([jake.uid]);
-    // no stakes in the preview
-    expect(JSON.stringify(res.result)).not.toContain("stake");
+describe("arena invite previews (seen before joining, even signed out)", { timeout: 30000 }, () => {
+  it("shows the arena with the right code", async () => {
+    const { inviteCode } = await setUp();
+    expect((await callFunction("previewInvite", null, { code: inviteCode })).result).toEqual({
+      arena: { name: "Third Floor", memberCount: 2 },
+    });
   });
 
-  it("counts the trash talk, without sending what anyone said", async () => {
-    const { inviteCode, callId, jake } = await setUp();
+  it("a made up code shows nothing, and it never sends a call", async () => {
+    const { callId, inviteCode } = await setUp();
+    expect(await callFunction("previewInvite", null, { code: "wrong-code", callId })).toEqual({ error: "That invite link doesn't work" });
+    // asking for a call with a real code still only gets the arena (calls come from their public preview)
+    expect(JSON.stringify((await callFunction("previewInvite", null, { code: inviteCode, callId })).result)).not.toContain("snows");
+  });
+});
+
+// the Cloud Functions update previews a moment after the call changes, so check until it's there
+async function waitFor<T>(read: () => Promise<T>, done: (value: T) => boolean): Promise<T> {
+  for (let i = 0; i < 50; i++) {
+    const value = await read();
+    if (done(value)) return value;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return read();
+}
+
+const previewOf = (callId: string) => readDoc(`previews/${callId}`);
+const fieldNames = (preview: { fields: Record<string, unknown> }) => Object.keys(preview.fields).sort();
+const facesOn = (preview: { fields: Record<string, { mapValue: { fields: { faces: { arrayValue: { values?: { mapValue: { fields: { name: { stringValue: string } } } }[] } } } } }> }, side: "yes" | "no") =>
+  (preview.fields[side].mapValue.fields.faces.arrayValue.values ?? []).map((v) => v.mapValue.fields.name.stringValue);
+
+describe("public previews of shared calls", { timeout: 60000 }, () => {
+  it("an open call gets one with only what the shared-link screen shows, kept up to date", async () => {
+    const { callId, jake } = await setUp(); // maya backs YES with 10
+    await callFunction("takeSide", jake.token, { predictionId: callId, side: "no", stake: 5 });
+    const preview = await waitFor(() => previewOf(callId), (p) => !!p && facesOn(p, "no").length === 1);
+
+    expect(fieldNames(preview)).toEqual(["arenaName", "comments", "no", "reactions", "subject", "subjectLabel", "text", "yes"]);
+    expect(preview.fields.arenaName.stringValue).toBe("Third Floor");
+    expect(preview.fields.text.stringValue).toBe("It snows this weekend");
+    expect(facesOn(preview, "yes")).toEqual(["Maya"]);
+    expect(facesOn(preview, "no")).toEqual(["Jake"]);
+    // 15 in the pot: 10 on YES is 1.5x, 5 on NO is 3x
+    expect(Number(preview.fields.yes.mapValue.fields.multiplier.doubleValue)).toBe(1.5);
+    expect(Number(preview.fields.no.mapValue.fields.multiplier.integerValue ?? preview.fields.no.mapValue.fields.multiplier.doubleValue)).toBe(3);
+    expect(JSON.stringify(preview)).not.toContain("stake");
+  });
+
+  it("counts reactions and comments without saying what anyone said", async () => {
+    const { callId, jake } = await setUp();
     const write = (path: string, fields: object) =>
       fetch(`${FIRESTORE}/${path}`, { method: "PATCH", headers: ADMIN, body: JSON.stringify({ fields }) });
     await write(`predictions/${callId}/comments/r1`, { uid: { stringValue: jake.uid }, text: { stringValue: "" }, reaction: { stringValue: "cap" } });
     await write(`predictions/${callId}/comments/c1`, { uid: { stringValue: jake.uid }, text: { stringValue: "secret trash talk" } });
 
-    const res = await callFunction("previewInvite", null, { code: inviteCode, callId });
-    expect(res.result.call.messages).toBe(2);
-    expect(JSON.stringify(res.result)).not.toContain("secret trash talk");
+    const preview = await waitFor(() => previewOf(callId), (p) => !!p && p.fields.comments.integerValue === "1" && p.fields.reactions.integerValue === "1");
+    expect(preview.fields.reactions.integerValue).toBe("1");
+    expect(preview.fields.comments.integerValue).toBe("1");
+    expect(JSON.stringify(preview)).not.toContain("secret trash talk");
   });
 
-  it("an arena invite with no call just shows the arena", async () => {
-    const { inviteCode } = await setUp();
-    expect((await callFunction("previewInvite", null, { code: inviteCode })).result).toEqual({
-      arena: { name: "Third Floor", memberCount: 2 },
-      call: null,
+  it("goes away once the call is settled", async () => {
+    const ctx = await setUp();
+    const callId = await playOne(ctx, 5, "yes");
+    expect(await waitFor(() => previewOf(callId), (p) => p === null)).toBeNull();
+  });
+
+  it("goes away when the person it's about takes it down", async () => {
+    const { arenaId, maya, jake } = await setUp();
+    const made = await callFunction("createCall", maya.token, {
+      arenaId,
+      text: "Jake oversleeps",
+      subjectId: jake.uid,
+      deadline: Date.now() + DAY,
+      side: "yes",
+      stake: 5,
     });
-  });
-
-  it("won't show a call without the right code", async () => {
-    const { callId } = await setUp();
-    const other = await setUp(); // a different arena with its own code
-    expect(await callFunction("previewInvite", null, { code: "wrong-code", callId })).toEqual({ error: "That invite link doesn't work" });
-    // a real code, but for a different arena than the call is in
-    expect(await callFunction("previewInvite", null, { code: other.inviteCode, callId })).toEqual({ error: "That call doesn't exist" });
+    const callId = made.result.id as string;
+    await waitFor(() => previewOf(callId), (p) => !!p);
+    await callFunction("deleteCall", jake.token, { predictionId: callId });
+    expect(await waitFor(() => previewOf(callId), (p) => p === null)).toBeNull();
   });
 });
 

@@ -3,6 +3,7 @@ import { getFirestore, DocumentReference, FieldValue, Transaction } from "fireba
 import { randomBytes } from "crypto";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { START_GLORY, START_TOKENS, VOTE_WINDOW_MS } from "../../src/lib/constants";
 import { Arena, Payout, Position, Prediction, Side, User, VoidReason } from "../../src/lib/types";
 import { tierForGlory } from "../../src/lib/ranks";
@@ -19,6 +20,7 @@ import {
   sweepDecision,
 } from "../../src/lib/resolve";
 import { NewCall, validateNewCall } from "../../src/lib/calls";
+import { buildPreview } from "../../src/lib/previews";
 import { canDispute, canVote, disputeResult, openingVotes, payoutsAfterFlip, redoResult, voteIsOver } from "../../src/lib/disputes";
 import { dailyGrant, localDate, pickTimeZone } from "../../src/lib/tokens";
 
@@ -319,54 +321,55 @@ export const joinArena = onCall(async (request) => {
   return { arenaId: arenaRef.id };
 });
 
-// what someone sees when they open an invite link before joining (even signed out).
-// needs the arena's invite code, and only returns what that screen shows
+// what an arena invite link shows before you sign in: the arena's name and size.
+// a call link's call comes from its public preview (below), not from here
 export const previewInvite = onCall(async (request) => {
   const code = cleanCode(request.data?.code);
   const arenaSnap = await findArenaByCode(code);
   const arena = arenaSnap.data() as Arena;
-  const arenaInfo = { name: arena.name, memberCount: arena.memberIds.length };
-
-  const callId = request.data?.callId;
-  if (callId === undefined || callId === null) return { arena: arenaInfo, call: null };
-
-  // the call has to be in the arena the code is for
-  if (typeof callId !== "string" || !callId || callId.includes("/")) {
-    throw new HttpsError("not-found", "That call doesn't exist");
-  }
-  const callSnap = await db.doc(`predictions/${callId}`).get();
-  const call = callSnap.data() as Prediction | undefined;
-  if (!call || call.arenaId !== arena.id) throw new HttpsError("not-found", "That call doesn't exist");
-
-  // names and photos for the faces on the screen. stakes stay private
-  const positions = (await callSnap.ref.collection("positions").get()).docs.map((d) => d.data() as Position);
-  // just how much trash talk there is (comments and quick reactions), not what anyone said
-  const talkCount = await callSnap.ref.collection("comments").count().get();
-  const uids = [...new Set([call.creatorId, ...(call.subjectId ? [call.subjectId] : []), ...positions.map((p) => p.uid)])];
-  const users = await db.getAll(...uids.map((u) => db.doc(`users/${u}`)));
-  const face = (u: string) => {
-    const user = users.find((x) => x.id === u)?.data() as User | undefined;
-    return { uid: u, name: user?.displayName ?? "Someone", photoURL: user?.photoURL ?? null };
-  };
-
-  return {
-    arena: arenaInfo,
-    call: {
-      id: call.id,
-      text: call.text,
-      status: call.status,
-      outcome: call.outcome,
-      createdAt: call.createdAt,
-      deadline: call.deadline,
-      subjectLabel: call.subjectLabel,
-      creator: face(call.creatorId),
-      subject: call.subjectId ? face(call.subjectId) : null,
-      yes: positions.filter((p) => p.side === "yes").map((p) => face(p.uid)),
-      no: positions.filter((p) => p.side === "no").map((p) => face(p.uid)),
-      messages: talkCount.data().count,
-    },
-  };
+  return { arena: { name: arena.name, memberCount: arena.memberIds.length } };
 });
+
+// ---------- public previews of shared calls ----------
+
+// rebuild previews/{callId} from the call as it is now, or remove it once the call isn't open.
+// in a transaction so it reads the call again if it changes underneath (a settled call never
+// gets a preview written back by a slower update)
+async function refreshPreview(callId: string) {
+  const callRef = db.doc(`predictions/${callId}`);
+  const previewRef = db.doc(`previews/${callId}`);
+
+  await db.runTransaction(async (tx) => {
+    const callSnap = await tx.get(callRef);
+    const call = callSnap.data() as Prediction | undefined;
+    if (!call || call.status !== "open" || !call.text) {
+      tx.delete(previewRef);
+      return;
+    }
+
+    const [positionSnaps, arenaSnap, threadSnaps] = await Promise.all([
+      tx.get(callRef.collection("positions")),
+      tx.get(db.doc(`arenas/${call.arenaId}`)),
+      tx.get(callRef.collection("comments")),
+    ]);
+    const positions = positionSnaps.docs.map((d) => d.data() as Position);
+    const uids = [...new Set([...(call.subjectId ? [call.subjectId] : []), ...positions.map((p) => p.uid)])];
+    const userSnaps = uids.length ? await tx.getAll(...uids.map((u) => db.doc(`users/${u}`))) : [];
+    const users = new Map(userSnaps.filter((u) => u.exists).map((u) => [u.id, u.data() as User]));
+    const thread = threadSnaps.docs.map((d) => ({ reaction: d.data().reaction }));
+
+    const preview = buildPreview(call, (arenaSnap.data() as Arena | undefined)?.name ?? "", positions, users, thread);
+    if (preview) tx.set(previewRef, preview);
+    else tx.delete(previewRef);
+  });
+}
+
+// the call changed (made, settled, voided, taken down), someone picked a side, or the trash talk changed
+export const previewOnCall = onDocumentWritten("predictions/{callId}", (event) => refreshPreview(event.params.callId));
+export const previewOnSide = onDocumentWritten("predictions/{callId}/positions/{uid}", (event) => refreshPreview(event.params.callId));
+export const previewOnTalk = onDocumentWritten("predictions/{callId}/comments/{commentId}", (event) =>
+  refreshPreview(event.params.callId)
+);
 
 // ---------- ending a call (settling or voiding) ----------
 
