@@ -37,6 +37,20 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "disputedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "predictions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "resolvedAt",
           "order": "DESCENDING"
         }

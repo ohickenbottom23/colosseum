@@ -19,6 +19,11 @@ export const MAX_STAKE_FACTOR = 2; // staking over 100 doesn't keep scaling glor
 
 export const RESOLVE_WINDOW_MS = 48 * 60 * 60 * 1000;
 
+// disputes: anyone who picked a side can dispute a settled call for a day, then everyone
+// who picked a side gets a day to vote on what really happened
+export const DISPUTE_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const VOTE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 // making a call
 export const MAX_CALL_TEXT = 200;
 export const MAX_LABEL = 40; // like "the weather"

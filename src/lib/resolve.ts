@@ -1,7 +1,8 @@
-import { Payout, Position, Prediction, Side, User, VoidReason } from "./types";
+import { Payout, Position, Prediction, RankResult, Side, User, VoidReason } from "./types";
 import { RESOLVE_WINDOW_MS } from "./constants";
 import { contrarianScore, gloryForWin, gloryForLoss, applyGlory } from "./glory";
 import { splitPot } from "./tokens";
+import { nextRankState, tierForGlory } from "./ranks";
 
 // ---------- checks for creating and joining ----------
 
@@ -79,6 +80,30 @@ export function applyPayout(user: Stats, payout: Payout, counted = true): Stats 
     glory: applyGlory(user.glory, payout.gloryChange),
     wins: user.wins + (counted && payout.won ? 1 : 0),
     calls: user.calls + (counted ? 1 : 0),
+  };
+}
+
+export type Player = Pick<User, "tokens" | "glory" | "wins" | "calls" | "rankTier" | "onTheLine">;
+
+// a player's numbers and rank after a call ends, plus the rankResult for the result screen.
+// voided calls (counted = false) never move rank, so there's no rankResult for them
+export function playerAfter(user: Player, payout: Payout, counted: boolean): { player: Player; rankResult: RankResult | null } {
+  // older players might not have a rank saved yet
+  const before = { rankTier: user.rankTier ?? tierForGlory(user.glory), onTheLine: user.onTheLine ?? false };
+  const stats = applyPayout(user, payout, counted);
+  if (!counted) return { player: { ...stats, ...before }, rankResult: null };
+
+  const rank = nextRankState(before, stats.glory, payout.won);
+  return {
+    player: { ...stats, rankTier: rank.rankTier, onTheLine: rank.onTheLine },
+    rankResult: {
+      before: before.rankTier,
+      after: rank.rankTier,
+      onTheLine: rank.onTheLine,
+      onTheLineBefore: before.onTheLine,
+      gloryBefore: user.glory,
+      gloryAfter: stats.glory,
+    },
   };
 }
 

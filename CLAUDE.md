@@ -40,7 +40,10 @@ Playing
 
 Resolution
 - The creator resolves it within 48 hours of the deadline. If they don't, it's voided, everyone gets their stake back, and the creator's `missedResolves` goes up.
-- Any participant can dispute a result. Then participants vote, majority wins, and a tie voids it.
+- Before saving, settling shows a confirm step saying what it does to tokens ("Settle as YES? Riley loses 10 tokens, you get 15 back.")
+- Any participant can dispute a result, within 24 hours of it being settled, once per call (`disputeCall`). Then participants vote, majority wins, and a tie voids it.
+  - The vote starts with the creator's vote (the result they settled) and the disputer's (the other side). Everyone else who picked a side gets 24 hours to vote (`voteOnDispute`), and the sweep decides it with the votes it has after that. With only two people in a call, a dispute is an instant tie.
+  - Glory and tokens move when the call is settled, not after the dispute window. If the vote flips it or ties, `redoResult` in `src/lib/disputes.ts` takes back what the first result did (tokens can't go below 0, rank only goes back if nothing else moved it since) and applies the new result.
 
 Arenas
 - An arena has a name, members (max 50), and an invite link. Any member can invite. A player can be in up to 30 arenas.

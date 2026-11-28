@@ -9,10 +9,15 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 export const metadata: Metadata = {
   title: "Colosseum",
   description: "A scoreboard for your own group's calls.",
+  // on iPhones, "Add to Home Screen" opens it full screen with this name.
+  // the manifest (manifest.ts) and the icons (icon.png, apple-icon.png) get picked up by Next on their own
+  appleWebApp: { capable: true, title: "Colosseum", statusBarStyle: "black" },
 };
 
 export const viewport: Viewport = {
   themeColor: "#73000A",
+  // lets the tab bar sit above the iPhone home bar (it uses env(safe-area-inset-bottom))
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

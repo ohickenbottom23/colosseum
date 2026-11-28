@@ -1,3 +1,6 @@
+import { hasNoTakers, settle } from "./lib/resolve";
+import { Position, Prediction, Side } from "./lib/types";
+
 // "3 days", "5 hours", etc. until a time, or null if it already passed
 export function timeUntil(time: number, now: number): string | null {
   const ms = time - now;
@@ -114,4 +117,30 @@ export function dayAndTime(time: number, now: number): string {
   const ampm = d.getHours() < 12 ? "am" : "pm";
   const clock = minutes === 0 ? `${hour}${ampm}` : `${hour}:${String(minutes).padStart(2, "0")}${ampm}`;
   return `${dayText(time, now)} at ${clock}`;
+}
+
+// the confirm line before settling, saying what it does to everyone's tokens:
+// "Riley loses 10 tokens, you get 15 back." people with nothing on it are left out
+export function settleSummary(call: Prediction, positions: Position[], outcome: Side, myUid: string, nameOf: (uid: string) => string): string {
+  if (hasNoTakers(call, positions)) return "Nobody else picked a side, so it won't count and you get your tokens back.";
+
+  const tokens = (n: number) => `${n} ${n === 1 ? "token" : "tokens"}`;
+  const payouts = settle(positions, outcome)
+    .filter((p) => (positions.find((x) => x.uid === p.uid)?.stake ?? 0) > 0)
+    // people losing tokens first, then people getting them back, you last in each
+    .sort((a, b) => Number(a.won) - Number(b.won) || Number(a.uid === myUid) - Number(b.uid === myUid));
+
+  const parts = payouts.map((p) => {
+    const you = p.uid === myUid;
+    const name = you ? "you" : nameOf(p.uid).split(" ")[0];
+    const stake = positions.find((x) => x.uid === p.uid)!.stake;
+    if (!p.won) return `${name} ${you ? "lose" : "loses"} ${tokens(stake)}`;
+    return `${name} ${you ? "get" : "gets"} ${p.tokenChange} back`;
+  });
+
+  if (parts.length === 0) return "Nobody has tokens on it, so only Glory changes.";
+  // a long list gets cut short
+  const shown = parts.length > 4 ? [...parts.slice(0, 3), `${parts.length - 3} more`] : parts;
+  const line = shown.join(", ");
+  return line.charAt(0).toUpperCase() + line.slice(1) + ".";
 }

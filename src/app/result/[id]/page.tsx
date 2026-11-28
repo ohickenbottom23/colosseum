@@ -7,7 +7,8 @@ import { collection, doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "@/firebase";
 import { useAuthUser, usePlayers } from "@/hooks";
 import { callInviteUrl, formatGlory } from "@/format";
-import { progressToNext, rankName } from "@/lib/ranks";
+import { formatMultiplier, progressToNext, rankName } from "@/lib/ranks";
+import { canDispute } from "@/lib/disputes";
 import { Arena, Position, Prediction } from "@/lib/types";
 import ShareButton from "../../ShareButton";
 import AvatarStack from "../../ui/AvatarStack";
@@ -59,7 +60,7 @@ export default function ResultPage() {
   }, [arenaId]);
 
   const mine = positions.find((p) => p.uid === authUser?.uid);
-  if (!authUser || !call || !mine?.result || !mine.rankResult || call.status !== "resolved") {
+  if (!authUser || !call || !mine?.result || !mine.rankResult || (call.status !== "resolved" && call.status !== "disputed")) {
     return (
       <main>
         <p>Loading...</p>
@@ -119,7 +120,8 @@ export default function ResultPage() {
       <div className="panel result-call">
         <p className="result-call-text">{call.text}</p>
         <p className="result-call-meta">
-          <span className={`side-pill ${call.outcome}`}>{call.outcome?.toUpperCase()}</span> Settled by {nameOf(call.creatorId)}
+          <span className={`side-pill ${call.outcome}`}>{call.outcome?.toUpperCase()}</span>{" "}
+          {call.disputeResult === "flipped" ? "Changed by a vote after a dispute" : `Settled by ${nameOf(call.creatorId)}`}
         </p>
       </div>
 
@@ -155,7 +157,7 @@ export default function ResultPage() {
               <strong>No tokens on this one</strong>
             ) : won ? (
               <>
-                <strong>+{profit} tokens</strong> · {multiplier?.toFixed(1)}x
+                <strong>+{profit} tokens</strong> · <span className="mult">{multiplier ? formatMultiplier(multiplier) : ""}</span>
               </>
             ) : (
               <strong>−{mine.stake} tokens</strong>
@@ -165,6 +167,7 @@ export default function ResultPage() {
       </div>
 
       <p className="result-line">{line}</p>
+      {call.status === "disputed" && <p className="result-line muted">This result is disputed. Everyone who picked a side is voting on it.</p>}
 
       <div className="result-who">
         <AvatarStack faces={right.map((p) => faceOf(p.uid, players))} size={30} />
@@ -192,6 +195,11 @@ export default function ResultPage() {
         <Link href="/new" className="text-button">
           Make another call
         </Link>
+        {!canDispute(call, authUser.uid, true, Date.now()) && (
+          <Link href={`/call/${call.id}?dispute=1`} className="text-button quiet">
+            Think that&apos;s wrong? Dispute it
+          </Link>
+        )}
       </div>
     </main>
   );

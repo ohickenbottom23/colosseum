@@ -63,6 +63,11 @@ export interface Prediction {
   voidReason: VoidReason | null;
   createdAt: number;
   resolvedAt: number | null;
+  // disputes. a call can be disputed once, in the 24 hours after it's settled
+  disputedBy?: string;
+  disputedAt?: number;
+  votes?: Record<string, Side>; // uid -> what they say really happened
+  disputeResult?: "upheld" | "flipped" | "void"; // how the vote came out
 }
 
 export interface Position {
@@ -81,6 +86,7 @@ export interface RankResult {
   before: number; // tier before
   after: number; // tier after
   onTheLine: boolean; // after
+  onTheLineBefore?: boolean; // so a dispute can put it back (missing on older results)
   gloryBefore: number; // so the result screen shows the real change (the floor can make it smaller)
   gloryAfter: number;
 }

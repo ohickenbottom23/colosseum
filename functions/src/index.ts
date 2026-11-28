@@ -3,22 +3,23 @@ import { getFirestore, DocumentReference, FieldValue, Transaction } from "fireba
 import { randomBytes } from "crypto";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { START_GLORY, START_TOKENS } from "../../src/lib/constants";
-import { Arena, Payout, Position, Prediction, RankResult, Side, User, VoidReason } from "../../src/lib/types";
-import { nextRankState, tierForGlory } from "../../src/lib/ranks";
+import { START_GLORY, START_TOKENS, VOTE_WINDOW_MS } from "../../src/lib/constants";
+import { Arena, Payout, Position, Prediction, Side, User, VoidReason } from "../../src/lib/types";
+import { tierForGlory } from "../../src/lib/ranks";
 import { canJoinArena, canLeaveArena, canMakeArena, canRemoveMember, isMember, ownerAfterLeaving, validateArenaName } from "../../src/lib/arenas";
 import {
-  applyPayout,
   canDelete,
   canResolve,
   deletePayouts,
   canTakeSide,
   hasNoTakers,
+  playerAfter,
   refundAll,
   settle,
   sweepDecision,
 } from "../../src/lib/resolve";
 import { NewCall, validateNewCall } from "../../src/lib/calls";
+import { canDispute, canVote, disputeResult, openingVotes, payoutsAfterVote, redoResult, voteIsOver } from "../../src/lib/disputes";
 import { dailyGrant, localDate, pickTimeZone } from "../../src/lib/tokens";
 
 initializeApp();
@@ -406,25 +407,10 @@ function finishCall(
   for (const payout of payouts) {
     const user = call.users.get(payout.uid);
     if (!user) continue;
-    const after = applyPayout(user, payout, counted);
-
-    // a settled call can move your rank. voided ones (refunds) never do
-    if (!counted) {
-      updates.set(payout.uid, after);
-      tx.update(ref.collection("positions").doc(payout.uid), { result: payout });
-      continue;
-    }
-    const before = { rankTier: user.rankTier ?? tierForGlory(user.glory), onTheLine: user.onTheLine ?? false };
-    const rank = nextRankState(before, after.glory, payout.won);
-    const rankResult: RankResult = {
-      before: before.rankTier,
-      after: rank.rankTier,
-      onTheLine: rank.onTheLine,
-      gloryBefore: user.glory,
-      gloryAfter: after.glory,
-    };
-    updates.set(payout.uid, { ...after, rankTier: rank.rankTier, onTheLine: rank.onTheLine });
-    tx.update(ref.collection("positions").doc(payout.uid), { result: payout, rankResult });
+    // a settled call can move your rank. voided ones (refunds) never do, so no rankResult
+    const { player, rankResult } = playerAfter(user, payout, counted);
+    updates.set(payout.uid, { ...player });
+    tx.update(ref.collection("positions").doc(payout.uid), rankResult ? { result: payout, rankResult } : { result: payout });
   }
 
   if (missedResolve) {
@@ -520,6 +506,102 @@ export const deleteCall = onCall(async (request) => {
   return { ok: true };
 });
 
+// ---------- disputes ----------
+
+function cleanCallId(id: unknown): string {
+  const callId = typeof id === "string" ? id : "";
+  if (!callId || callId.includes("/")) throw new HttpsError("invalid-argument", "That call doesn't exist");
+  return callId;
+}
+
+// a vote is over: keep the result, flip it, or void the call on a tie.
+// flipping or voiding takes back what the first result did to everyone, then applies the new one
+function finishVote(tx: Transaction, ref: DocumentReference, call: LoadedCall, votes: Record<string, Side>) {
+  const prediction = { ...call.prediction, votes };
+  const result = disputeResult(prediction);
+
+  if (result === "upheld") {
+    tx.update(ref, { status: "resolved", votes, disputeResult: "upheld" });
+    return;
+  }
+
+  const payouts = payoutsAfterVote(call.positions, prediction, result);
+  const counted = result === "flipped";
+  for (const position of call.positions) {
+    const user = call.users.get(position.uid);
+    const payout = payouts.find((p) => p.uid === position.uid);
+    if (!user || !payout || !position.result || !position.rankResult) continue;
+
+    const { player, rankResult } = redoResult(user, { result: position.result, rankResult: position.rankResult }, payout, counted);
+    tx.update(db.doc(`users/${position.uid}`), { ...player });
+    tx.update(ref.collection("positions").doc(position.uid), { result: payout, rankResult: rankResult ?? FieldValue.delete() });
+    // so home shows them the result screen again with the new result
+    if (counted) tx.delete(db.doc(`users/${position.uid}/seen/${ref.id}`));
+  }
+
+  if (counted) {
+    const outcome: Side = prediction.outcome === "yes" ? "no" : "yes";
+    tx.update(ref, { status: "resolved", outcome, votes, disputeResult: "flipped", resolvedAt: Date.now() });
+  } else {
+    tx.update(ref, { status: "void", voidReason: "tied_vote", votes, disputeResult: "void", resolvedAt: Date.now() });
+  }
+}
+
+// someone who picked a side says the result is wrong. starts a vote among everyone who picked a side
+export const disputeCall = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first");
+  const uid = request.auth.uid;
+  const ref = db.doc(`predictions/${cleanCallId(request.data?.predictionId)}`);
+
+  const status = await db.runTransaction(async (tx) => {
+    const call = await loadCall(tx, ref);
+    if (!call) throw new HttpsError("not-found", "That call doesn't exist");
+    const pickedASide = call.positions.some((p) => p.uid === uid);
+    const problem = canDispute(call.prediction, uid, pickedASide, Date.now());
+    if (problem) throw new HttpsError("failed-precondition", problem);
+
+    const now = Date.now();
+    const votes = openingVotes(call.prediction, uid);
+    const disputed: Prediction = { ...call.prediction, status: "disputed", disputedBy: uid, disputedAt: now, votes };
+    // with just two people in it, both have already voted, so it's over right away
+    if (voteIsOver(disputed, call.positions, now)) {
+      finishVote(tx, ref, { ...call, prediction: disputed }, votes);
+      return "finished";
+    }
+    tx.update(ref, { status: "disputed", disputedBy: uid, disputedAt: now, votes });
+    return "disputed";
+  });
+
+  return { status };
+});
+
+// a vote on what really happened. ends the vote once everyone's in
+export const voteOnDispute = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first");
+  const uid = request.auth.uid;
+  const ref = db.doc(`predictions/${cleanCallId(request.data?.predictionId)}`);
+  const side = request.data?.side;
+  if (side !== "yes" && side !== "no") throw new HttpsError("invalid-argument", "Pick yes or no");
+
+  const status = await db.runTransaction(async (tx) => {
+    const call = await loadCall(tx, ref);
+    if (!call) throw new HttpsError("not-found", "That call doesn't exist");
+    const pickedASide = call.positions.some((p) => p.uid === uid);
+    const problem = canVote(call.prediction, uid, pickedASide, Date.now());
+    if (problem) throw new HttpsError("failed-precondition", problem);
+
+    const votes = { ...call.prediction.votes, [uid]: side as Side };
+    if (voteIsOver({ ...call.prediction, votes }, call.positions, Date.now())) {
+      finishVote(tx, ref, call, votes);
+      return "finished";
+    }
+    tx.update(ref, { votes });
+    return "voted";
+  });
+
+  return { status };
+});
+
 // ---------- leaving and removing ----------
 
 // take someone out of an arena: off both lists in one transaction, ownership handed on if the
@@ -594,7 +676,8 @@ export const removeMember = onCall(async (request) => {
 
 // ---------- voiding calls nobody settled ----------
 
-// finds open calls past their deadline and voids the ones that need it. returns how many
+// finds open calls past their deadline and voids the ones that need it (returns how many),
+// and decides disputes whose voting time is up
 async function sweep(): Promise<number> {
   const due = await db
     .collection("predictions")
@@ -615,6 +698,21 @@ async function sweep(): Promise<number> {
       return true;
     });
     if (didVoid) voided++;
+  }
+
+  // disputes whose 24 hours of voting are up get decided with the votes they have
+  const votesDue = await db
+    .collection("predictions")
+    .where("status", "==", "disputed")
+    .where("disputedAt", "<", Date.now() - VOTE_WINDOW_MS)
+    .limit(200)
+    .get();
+  for (const doc of votesDue.docs) {
+    await db.runTransaction(async (tx) => {
+      const call = await loadCall(tx, doc.ref);
+      if (!call || !voteIsOver(call.prediction, call.positions, Date.now())) return;
+      finishVote(tx, doc.ref, call, call.prediction.votes ?? {});
+    });
   }
   return voided;
 }

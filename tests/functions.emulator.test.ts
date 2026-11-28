@@ -477,3 +477,99 @@ describe("out of tokens", { timeout: 30000 }, () => {
     expect(res).toEqual({ error: "You don't have enough tokens" });
   });
 });
+
+// set a number field on a call, to pretend time has passed
+async function setCallTime(callId: string, field: string, value: number) {
+  await fetch(`${FIRESTORE}/predictions/${callId}?updateMask.fieldPaths=${field}`, {
+    method: "PATCH",
+    headers: ADMIN,
+    body: JSON.stringify({ fields: { [field]: { integerValue: String(value) } } }),
+  });
+}
+
+async function disputeStatus(callId: string) {
+  const f = (await readDoc(`predictions/${callId}`)).fields;
+  return { status: f.status.stringValue, outcome: f.outcome?.stringValue ?? null, voidReason: f.voidReason?.stringValue ?? null };
+}
+
+// maya backs YES with 10, jake and sam back NO with 20 and 30, and maya settles it YES
+async function settledThreeWay() {
+  const ctx = await setUp();
+  const sam = await newPlayer("Sam");
+  await callFunction("joinArena", sam.token, { code: ctx.inviteCode });
+  const made = await callFunction("createCall", ctx.maya.token, {
+    arenaId: ctx.arenaId,
+    text: "Dispute test",
+    subjectLabel: "test",
+    deadline: Date.now() + DAY,
+    side: "yes",
+    stake: 10,
+  });
+  const callId = made.result.id as string;
+  await callFunction("takeSide", ctx.jake.token, { predictionId: callId, side: "no", stake: 20 });
+  await callFunction("takeSide", sam.token, { predictionId: callId, side: "no", stake: 30 });
+  await setDeadline(callId, Date.now() - 60 * 1000);
+  await callFunction("resolveCall", ctx.maya.token, { predictionId: callId, outcome: "yes" });
+  return { ...ctx, sam, callId };
+}
+
+describe("disputes", { timeout: 60000 }, () => {
+  it("a vote that goes the other way flips the result and redoes everyone's tokens", async () => {
+    const { maya, jake, sam, callId } = await settledThreeWay();
+    // maya won the whole pot: 30 left after setUp's call and this one, plus 60 back
+    expect(await tokensOf(maya.uid)).toBe(90);
+
+    const outsider = await newPlayer("Nora");
+    expect(await callFunction("disputeCall", outsider.token, { predictionId: callId })).toEqual({
+      error: "Only people who picked a side can dispute it",
+    });
+    expect(await callFunction("disputeCall", jake.token, { predictionId: callId })).toEqual({ result: { status: "disputed" } });
+    expect((await disputeStatus(callId)).status).toBe("disputed");
+    expect(await callFunction("voteOnDispute", jake.token, { predictionId: callId, side: "no" })).toEqual({ error: "You already voted" });
+
+    // sam's vote is the last one, so it's decided: 2 say NO, 1 says YES
+    expect(await callFunction("voteOnDispute", sam.token, { predictionId: callId, side: "no" })).toEqual({ result: { status: "finished" } });
+    expect(await disputeStatus(callId)).toEqual({ status: "resolved", outcome: "no", voidReason: null });
+
+    // now it's as if maya settled it NO: she's down her 10, and jake and sam split the 60 (20 + 30 stakes, plus 10)
+    expect(await tokensOf(maya.uid)).toBe(30);
+    expect((await tokensOf(jake.uid)) + (await tokensOf(sam.uid))).toBe(30 + 20 + 60);
+    const rank = await rankOf(jake.uid);
+    expect(rank.glory).toBeGreaterThan(100);
+
+    // one dispute per call
+    expect(await callFunction("disputeCall", maya.token, { predictionId: callId })).toEqual({
+      error: "This call was already disputed once",
+    });
+  });
+
+  it("with only two people in it, a dispute is a tie right away and the call doesn't count", async () => {
+    const ctx = await setUp();
+    const callId = await playOne(ctx, 20, "yes");
+    expect(await callFunction("disputeCall", ctx.jake.token, { predictionId: callId })).toEqual({ result: { status: "finished" } });
+    expect(await disputeStatus(callId)).toEqual({ status: "void", outcome: "yes", voidReason: "tied_vote" });
+    // everyone's back where they started: setUp's call still holds maya's 10
+    expect(await tokensOf(ctx.maya.uid)).toBe(40);
+    expect(await tokensOf(ctx.jake.uid)).toBe(50);
+    expect((await rankOf(ctx.maya.uid)).glory).toBe(100);
+  });
+
+  it("can't be disputed after 24 hours", async () => {
+    const { jake, callId } = await settledThreeWay();
+    await setCallTime(callId, "resolvedAt", Date.now() - DAY - 60 * 1000);
+    expect(await callFunction("disputeCall", jake.token, { predictionId: callId })).toEqual({
+      error: "The 24 hours to dispute this are up",
+    });
+  });
+
+  it("when voting time runs out, the sweep decides it with the votes it has", async () => {
+    const { maya, jake, sam, callId } = await settledThreeWay();
+    await callFunction("disputeCall", jake.token, { predictionId: callId });
+    // sam never votes. it's maya YES against jake NO, a tie
+    await setCallTime(callId, "disputedAt", Date.now() - DAY - 60 * 1000);
+    expect(await callFunction("voteOnDispute", sam.token, { predictionId: callId, side: "no" })).toEqual({ error: "Voting is over" });
+    await callFunction("runSweep", maya.token, {});
+    expect(await disputeStatus(callId)).toEqual({ status: "void", outcome: "yes", voidReason: "tied_vote" });
+    expect(await tokensOf(sam.uid)).toBe(50);
+  });
+});

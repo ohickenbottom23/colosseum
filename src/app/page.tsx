@@ -9,6 +9,7 @@ import { useAuthUser, useCallPositions, useMyArenas, useMyPositions, usePlayer, 
 import { resultLine, timeUntil } from "@/format";
 import { Prediction } from "@/lib/types";
 import { picksCloseAt } from "@/lib/resolve";
+import { canVote } from "@/lib/disputes";
 import { RESOLVE_WINDOW_MS } from "@/lib/constants";
 import CallCard from "./CallCard";
 import CalledOutCard from "./CalledOutCard";
@@ -76,8 +77,12 @@ export default function Home() {
     );
   }, [arenaKey]);
 
+  // disputed calls you picked a side on and haven't voted on yet. they go at the top
+  const needsVote = authUser ? finished.filter((c) => !canVote(c, authUser.uid, myPositions.has(c.id), Date.now())) : [];
   // finished calls you played in or made (only the latest few)
-  const recent = authUser ? finished.filter((c) => myPositions.has(c.id) || c.creatorId === authUser.uid).slice(0, 10) : [];
+  const recent = authUser
+    ? finished.filter((c) => (myPositions.has(c.id) || c.creatorId === authUser.uid) && !needsVote.includes(c)).slice(0, 10)
+    : [];
 
   // a call you were in just got settled and you haven't seen how it went: show the result screen.
   // one at a time, newest first, and only from the last week so old ones don't pile up
@@ -93,9 +98,10 @@ export default function Home() {
   }, [unseenId, router]);
 
   // who picked what on every call on this screen, for the split bars and faces
-  const positionsByCall = useCallPositions([...calls, ...recent].map((c) => c.id));
+  const onScreen = [...calls, ...needsVote, ...recent].map((c) => c.id);
+  const positionsByCall = useCallPositions(onScreen);
   // and the trash talk on them, for the counts on each card
-  const talk = useTalkCounts([...calls, ...recent].map((c) => c.id));
+  const talk = useTalkCounts(onScreen);
 
   if (loading) return <main><p>Loading...</p></main>;
 
@@ -146,6 +152,7 @@ export default function Home() {
   // what to say under a finished call
   function recentNote(c: Prediction): string {
     const mine = myPositions.get(c.id);
+    if (c.status === "disputed") return `Result: ${c.outcome?.toUpperCase()}, but it's disputed. Waiting on the vote`;
     if (c.status === "void") {
       if (mine?.result) return `Didn't count. ${resultLine(mine.result, true)}`;
       if (c.voidReason === "not_resolved" && c.creatorId === authUser?.uid) return "Didn't count. You didn't settle it in time";
@@ -224,6 +231,21 @@ export default function Home() {
           <ul className="calls">
             {needsResult.map((c) =>
               card(c, settleNote(c), { label: "Settle it", href: `/call/${c.id}` })
+            )}
+          </ul>
+        </>
+      )}
+
+      {/* someone disputed a result and you get a say */}
+      {needsVote.length > 0 && (
+        <>
+          <h2>Vote on these</h2>
+          <ul className="calls">
+            {needsVote.map((c) =>
+              card(c, `Settled ${c.outcome?.toUpperCase()}, and ${nameOf(c.disputedBy ?? "").split(" ")[0]} disputed it`, {
+                label: "Vote",
+                href: `/call/${c.id}`,
+              })
             )}
           </ul>
         </>

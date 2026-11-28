@@ -761,6 +761,11 @@ button.chip .sub {
   letter-spacing: 0;
 }
 
+/* multipliers are always lowercase ("1.5x"), even inside all-caps labels */
+.mult {
+  text-transform: none;
+}
+
 /* the "If you're right" box */
 .estimate-label {
   font-size: 12px;
@@ -1527,6 +1532,13 @@ a.text-button {
   text-decoration: none;
 }
 
+a.text-button.quiet {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--cream-muted);
+  text-decoration: underline;
+}
+
 /* invite screens (shared call link and /join, signed out) */
 main.invite {
   display: flex;
@@ -1920,4 +1932,38 @@ button.chip.talk.on {
   width: 100%;
   padding: 18px 20px;
   font-size: 18px;
+}
+
+/* disputes on the call page */
+.dispute-start {
+  margin: 12px 0 0;
+}
+
+.dispute-start p {
+  margin: 0;
+}
+
+.dispute-note {
+  margin: 10px 0 0;
+}
+
+.panel.dispute {
+  margin-top: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panel.dispute p {
+  margin: 0;
+}
+
+.settle-confirm {
+  margin: 0;
+}
+
+.settle-note {
+  margin: 0;
+  font-size: 13px;
 }

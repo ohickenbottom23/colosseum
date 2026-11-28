@@ -1,3 +1,5 @@
+import { formatMultiplier } from "@/lib/ranks";
+
 // YES vs NO. the bar is split by how many tokens are on each side, and each side is labeled
 // with its multiplier ("YES · 2.5x"). the faces under the bar show who's on each side, so no
 // head counts here. "big" is the call page version with the labels large on top
@@ -52,7 +54,14 @@ export default function SplitBar({
         </>
       );
     }
-    return m ? `${side} · ${m.toFixed(1)}x` : side;
+    // the big labels are all caps, so the multiplier is wrapped to keep the x lowercase
+    return m ? (
+      <>
+        {side} · <span className="mult">{formatMultiplier(m)}</span>
+      </>
+    ) : (
+      side
+    );
   };
 
   return (

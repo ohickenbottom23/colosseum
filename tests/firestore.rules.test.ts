@@ -195,6 +195,11 @@ describe("predictions", () => {
     await assertFails(deleteDoc(doc(as("maya"), "predictions/p1")));
   });
 
+  it("disputes and votes go through the server too, nobody can stuff the ballot", async () => {
+    await assertFails(updateDoc(doc(as("maya"), "predictions/p1"), { status: "disputed", disputedAt: Date.now() }));
+    await assertFails(updateDoc(doc(as("maya"), "predictions/p1"), { "votes.maya": "yes" }));
+  });
+
   it("you can't move a call into another arena", async () => {
     await assertFails(updateDoc(doc(as("maya"), "predictions/p1"), { arenaId: "roommates" }));
   });

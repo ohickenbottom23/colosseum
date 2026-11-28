@@ -1,0 +1,24 @@
+# Firebase App Hosting runs the Next.js app. it reads this file every time it builds from GitHub.
+# fill in the three REPLACE_ME values from the Firebase console (see "Deploying" in the README).
+# these are the app's public web settings, the same ones every visitor's browser gets, so they're
+# fine to commit. nothing secret goes in here.
+
+runConfig:
+  minInstances: 0 # nobody on it, no servers running
+  maxInstances: 2 # a few friend groups don't need more, and it keeps a surprise bill small
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  # the app's own address (like colosseum--my-project.us-central1.hosted.app), not firebaseapp.com.
+  # phones sign in with a redirect, which only works when this is the same site as the app
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: REPLACE_ME
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_USE_EMULATORS
+    value: "false"
+    availability: [BUILD, RUNTIME]

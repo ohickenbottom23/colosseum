@@ -11,13 +11,14 @@ import SharedCallInvite, { InvitePreview } from "../../SharedCallInvite";
 import ShareButton from "../../ShareButton";
 import TakeDown from "../../TakeDown";
 import TrashTalk from "../../TrashTalk";
+import DisputeBox from "../../DisputeBox";
 import SplitBar from "../../ui/SplitBar";
 import AvatarStack from "../../ui/AvatarStack";
 import Avatar, { faceOf } from "../../ui/Avatar";
 import { BackIcon } from "../../ui/Icons";
 import { subjectFace } from "../../CallCard";
 import { useAuthUser, usePlayer, usePlayers } from "@/hooks";
-import { callInviteUrl, callText, dayText, formatGlory, picksCloseText, resultLine, timeLeft, voidReasonText, errorText } from "@/format";
+import { callInviteUrl, callText, dayText, formatGlory, picksCloseText, resultLine, settleSummary, timeLeft, voidReasonText, errorText } from "@/format";
 import { canDelete, canResolve, canTakeSide, picksCloseAt, previewIfRight } from "@/lib/resolve";
 import { DAILY_TOKENS, RESOLVE_WINDOW_MS } from "@/lib/constants";
 import { formatMultiplier, rankOutlook, sideMultiplier, tierForGlory } from "@/lib/ranks";
@@ -31,6 +32,7 @@ export default function CallPage() {
   const inviteCode = params.get("i"); // shared links carry the arena's invite code
   const sideFromLink = params.get("side"); // "Prove them wrong" on home picks the side for you
   const justPosted = params.get("share") === "1"; // came from posting, and the share sheet didn't open
+  const disputeFromLink = params.get("dispute") === "1"; // "Dispute it" on the result screen
   const { authUser, loading, ready } = useAuthUser();
   const uid = authUser?.uid ?? null;
   const players = usePlayers(!!authUser);
@@ -257,7 +259,7 @@ export default function CallPage() {
       )}
 
       {/* how it ended */}
-      {call.status === "resolved" && (
+      {(call.status === "resolved" || call.status === "disputed") && (
         <div className="result">
           <h3>Result: {call.outcome?.toUpperCase()}</h3>
           {mine?.result && <p>{resultLine(mine.result, false)}</p>}
@@ -272,6 +274,11 @@ export default function CallPage() {
           </p>
           {mine?.result && <p>{resultLine(mine.result, true)}.</p>}
         </div>
+      )}
+
+      {/* dispute a settled call, vote on one, or how the vote went */}
+      {(call.status === "resolved" || call.status === "disputed") && (
+        <DisputeBox call={call} positions={positions} myUid={authUser.uid} nameOf={nameOf} startOpen={disputeFromLink} />
       )}
 
       {/* who's on each side. stakes stay private */}
@@ -303,9 +310,13 @@ export default function CallPage() {
               </div>
             ) : (
               <>
-                <p>
-                  Settle this as <strong>{outcome.toUpperCase()}</strong>? Glory and tokens update for everyone right
-                  away, and you can&apos;t undo it.
+                {/* nothing is saved until they confirm, and it says exactly what it'll do */}
+                <p className="settle-confirm">
+                  <strong>Settle as {outcome.toUpperCase()}?</strong>{" "}
+                  {settleSummary(call, positions, outcome, authUser.uid, nameOf)}
+                </p>
+                <p className="muted settle-note">
+                  Glory updates right away. Anyone who picked a side can dispute it for 24 hours.
                 </p>
                 <button className="main" onClick={settleIt} disabled={settling}>
                   {settling ? "Settling..." : `Settle as ${outcome.toUpperCase()}`}
