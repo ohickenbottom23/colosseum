@@ -2,8 +2,8 @@ import Link from "next/link";
 import { callText, cardTimeText } from "@/format";
 import { picksCloseAt } from "@/lib/resolve";
 import { sideMultiplier } from "@/lib/ranks";
-import { Position, Prediction, Reaction } from "@/lib/types";
-import { countReactions, REACTIONS } from "@/lib/trashTalk";
+import { Comment, Position, Prediction } from "@/lib/types";
+import { reactionLabel } from "@/lib/trashTalk";
 import { CommentIcon } from "./ui/Icons";
 import Avatar, { Face } from "./ui/Avatar";
 import AvatarStack from "./ui/AvatarStack";
@@ -24,8 +24,7 @@ export default function CallCard({
   arenaName,
   note,
   now,
-  reactions = [],
-  commentCount = 0,
+  latest,
   action,
 }: {
   call: Prediction;
@@ -35,12 +34,9 @@ export default function CallCard({
   arenaName: string;
   note?: string; // an extra bold line, like "You picked NO"
   now: number;
-  reactions?: Reaction[];
-  commentCount?: number;
-  action?: { label: string; href: string }; // a button under the card, like "Pick a side"
+  latest?: Comment | null; // the newest trash talk message on it
+  action?: { label: string; href: string; quiet?: boolean }; // a button under the card ("Pick a side"), or a quiet link
 }) {
-  const counts = countReactions(reactions);
-  const hasTalk = reactions.length > 0 || commentCount > 0;
   const when = cardTimeText(picksCloseAt(call), call.deadline, now);
   const yes = positions.filter((p) => p.side === "yes");
   const no = positions.filter((p) => p.side === "no");
@@ -83,32 +79,24 @@ export default function CallCard({
           </>
         )}
 
-        {/* trash talk at a glance: reaction counts and how many comments */}
-        {call.text && hasTalk && (
-          <div className="call-talk">
-            {REACTIONS.filter((r) => counts[r.type] > 0).map((r) => (
-              <span key={r.type} className="talk-pill">
-                {r.label} {counts[r.type]}
-              </span>
-            ))}
-            {commentCount > 0 && (
-              <span className="talk-comments">
-                <CommentIcon /> {commentCount}
-              </span>
-            )}
-          </div>
+        {/* trash talk at a glance: the newest message */}
+        {call.text && latest && (
+          <p className="call-latest">
+            <CommentIcon /> <strong>{nameOf(latest.uid).split(" ")[0]}</strong>{" "}
+            {latest.reaction ? <span className="talk-chip small">{reactionLabel(latest.reaction)}</span> : latest.text}
+          </p>
         )}
 
-        {note && !action && <p className="call-mine">{note}</p>}
+        {note && (!action || action.quiet) && <p className="call-mine">{note}</p>}
       </Link>
 
       {/* outside the card's link, since a link can't go inside another link */}
       {action && (
         <div className="card-actions">
-          <Link href={action.href} className="card-button">
+          <Link href={action.href} className={action.quiet ? "card-link" : "card-button"}>
             {action.label}
           </Link>
-          {note && <p className="call-mine">{note}</p>}
+          {note && !action.quiet && <p className="call-mine">{note}</p>}
         </div>
       )}
     </li>

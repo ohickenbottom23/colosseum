@@ -12,6 +12,7 @@ import ShareButton from "../../ShareButton";
 import TakeDown from "../../TakeDown";
 import TrashTalk from "../../TrashTalk";
 import DisputeBox from "../../DisputeBox";
+import ResultSummary from "../../ResultSummary";
 import SplitBar from "../../ui/SplitBar";
 import AvatarStack from "../../ui/AvatarStack";
 import Avatar, { faceOf } from "../../ui/Avatar";
@@ -260,10 +261,14 @@ export default function CallPage() {
 
       {/* how it ended */}
       {(call.status === "resolved" || call.status === "disputed") && (
-        <div className="result">
-          <h3>Result: {call.outcome?.toUpperCase()}</h3>
-          {mine?.result && <p>{resultLine(mine.result, false)}</p>}
-        </div>
+        <ResultSummary
+          call={call}
+          positions={positions}
+          arena={arena}
+          myUid={authUser.uid}
+          nameOf={nameOf}
+          faceFor={(u) => faceOf(u, players)}
+        />
       )}
       {call.status === "void" && (
         <div className="result">
@@ -278,7 +283,14 @@ export default function CallPage() {
 
       {/* dispute a settled call, vote on one, or how the vote went */}
       {(call.status === "resolved" || call.status === "disputed") && (
-        <DisputeBox call={call} positions={positions} myUid={authUser.uid} nameOf={nameOf} startOpen={disputeFromLink} />
+        <DisputeBox
+          call={call}
+          positions={positions}
+          memberIds={arena?.memberIds ?? []}
+          myUid={authUser.uid}
+          nameOf={nameOf}
+          startOpen={disputeFromLink}
+        />
       )}
 
       {/* who's on each side. stakes stay private */}

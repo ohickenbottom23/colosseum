@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { addDoc, collection, deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/firebase";
 import { useTrashTalk } from "@/hooks";
 import { errorText } from "@/format";
 import { MAX_COMMENT } from "@/lib/constants";
-import { countReactions, REACTIONS, tapReaction, validateComment } from "@/lib/trashTalk";
+import { canQuickReact, joinNames, lineUids, REACTIONS, reactionLabel, talkLines, validateComment } from "@/lib/trashTalk";
 import { Comment, ReactionType } from "@/lib/types";
 import Avatar, { Face } from "./ui/Avatar";
+import AvatarStack from "./ui/AvatarStack";
 
-// reactions and comments on a call. only arena members get to the call page,
-// and the Firestore rules check that again on every write
+// the trash talk thread on a call: typed comments and quick reactions, newest at the bottom.
+// only arena members get to the call page, and the Firestore rules check that again on every write
 export default function TrashTalk({
   callId,
   myUid,
@@ -23,25 +24,27 @@ export default function TrashTalk({
   faceFor: (uid: string) => Face;
   open: boolean; // false once the subject takes the call down
 }) {
-  const { reactions, comments } = useTrashTalk(callId);
+  const messages = useTrashTalk(callId);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [posting, setPosting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
 
-  const counts = countReactions(reactions);
-  const mine = reactions.find((r) => r.uid === myUid)?.type ?? null;
-  const myReactionRef = doc(db, "predictions", callId, "reactions", myUid);
+  const thread = collection(db, "predictions", callId, "comments");
 
+  // a quick reaction is a message in the thread too, just with no text
   async function react(type: ReactionType) {
+    const problem = canQuickReact(messages, myUid, type);
+    if (problem) {
+      setError(problem);
+      return;
+    }
     setError("");
-    const next = tapReaction(mine, type);
     try {
-      if (next) await setDoc(myReactionRef, { uid: myUid, type: next, createdAt: serverTimestamp() });
-      else await deleteDoc(myReactionRef);
+      await addDoc(thread, { uid: myUid, text: "", reaction: type, createdAt: serverTimestamp(), edited: false });
     } catch (err) {
-      setError(errorText(err, "Couldn't save that"));
+      setError(errorText(err, "Couldn't post that"));
     }
   }
 
@@ -55,12 +58,7 @@ export default function TrashTalk({
     setError("");
     setPosting(true);
     try {
-      await addDoc(collection(db, "predictions", callId, "comments"), {
-        uid: myUid,
-        text: text.trim(),
-        createdAt: serverTimestamp(),
-        edited: false,
-      });
+      await addDoc(thread, { uid: myUid, text: text.trim(), createdAt: serverTimestamp(), edited: false });
       setText("");
     } catch (err) {
       setError(errorText(err, "Couldn't post that"));
@@ -76,17 +74,17 @@ export default function TrashTalk({
     }
     setError("");
     try {
-      await updateDoc(doc(db, "predictions", callId, "comments", c.id), { text: editText.trim(), edited: true });
+      await updateDoc(doc(thread, c.id), { text: editText.trim(), edited: true });
       setEditingId(null);
     } catch (err) {
       setError(errorText(err, "Couldn't save that"));
     }
   }
 
-  async function remove(c: Comment) {
+  async function remove(list: Comment[]) {
     setError("");
     try {
-      await deleteDoc(doc(db, "predictions", callId, "comments", c.id));
+      await Promise.all(list.map((c) => deleteDoc(doc(thread, c.id))));
     } catch (err) {
       setError(errorText(err, "Couldn't delete that"));
     }
@@ -101,55 +99,93 @@ export default function TrashTalk({
       {open && (
         <div className="chips">
           {REACTIONS.map((r) => (
-            <button key={r.type} type="button" className={mine === r.type ? "chip talk on" : "chip talk"} onClick={() => react(r.type)}>
-              {r.label} {counts[r.type] > 0 && <span className="talk-count">{counts[r.type]}</span>}
+            <button
+              key={r.type}
+              type="button"
+              className="chip talk"
+              onClick={() => react(r.type)}
+              // greyed out right after you said it, until someone says something else
+              disabled={!!canQuickReact(messages, myUid, r.type)}
+            >
+              {r.label}
             </button>
           ))}
         </div>
       )}
 
       <ul className="comments">
-        {comments.map((c) => (
-          <li key={c.id} className="comment">
-            <Avatar face={faceFor(c.uid)} size={30} />
-            <div className="comment-body">
-              {editingId === c.id ? (
-                <div className="comment-edit">
-                  <input value={editText} onChange={(e) => setEditText(e.target.value)} maxLength={MAX_COMMENT} aria-label="Edit comment" />
-                  <div className="comment-tools">
-                    <button type="button" className="link-button" onClick={() => saveEdit(c)}>Save</button>
-                    <button type="button" className="link-button" onClick={() => setEditingId(null)}>Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <>
+        {talkLines(messages).map((line) => {
+          // the same quick reaction from a few people in a row: one line with all their faces
+          if (line.kind === "reaction") {
+            const uids = lineUids(line.messages);
+            const mine = line.messages.filter((m) => m.uid === myUid);
+            return (
+              <li key={line.messages[0].id} className="comment reaction-line">
+                {uids.length === 1 ? (
+                  <Avatar face={faceFor(uids[0])} size={30} />
+                ) : (
+                  <AvatarStack faces={uids.map(faceFor)} size={30} max={3} />
+                )}
+                <div className="comment-body">
                   <p>
-                    <strong>{firstName(c.uid)}</strong> {c.text}
-                    {c.edited && <span className="muted"> (edited)</span>}
+                    <strong>{joinNames(uids.map(firstName))}</strong>{" "}
+                    <span className="talk-chip">{reactionLabel(line.type)}</span>
                   </p>
-                  {/* your own comments only */}
-                  {c.uid === myUid && open && (
+                  {mine.length > 0 && open && (
                     <div className="comment-tools">
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={() => {
-                          setEditingId(c.id);
-                          setEditText(c.text);
-                        }}
-                      >
-                        Edit
+                      <button type="button" className="link-button" onClick={() => remove(mine)}>
+                        Delete
                       </button>
-                      <button type="button" className="link-button" onClick={() => remove(c)}>Delete</button>
                     </div>
                   )}
-                </>
-              )}
-            </div>
-          </li>
-        ))}
+                </div>
+              </li>
+            );
+          }
+
+          const c = line.message;
+          return (
+            <li key={c.id} className="comment">
+              <Avatar face={faceFor(c.uid)} size={30} />
+              <div className="comment-body">
+                {editingId === c.id ? (
+                  <div className="comment-edit">
+                    <input value={editText} onChange={(e) => setEditText(e.target.value)} maxLength={MAX_COMMENT} aria-label="Edit comment" />
+                    <div className="comment-tools">
+                      <button type="button" className="link-button" onClick={() => saveEdit(c)}>Save</button>
+                      <button type="button" className="link-button" onClick={() => setEditingId(null)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p>
+                      <strong>{firstName(c.uid)}</strong> {c.text}
+                      {c.edited && <span className="muted"> (edited)</span>}
+                    </p>
+                    {/* your own comments only */}
+                    {c.uid === myUid && open && (
+                      <div className="comment-tools">
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => {
+                            setEditingId(c.id);
+                            setEditText(c.text);
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button type="button" className="link-button" onClick={() => remove([c])}>Delete</button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ul>
-      {comments.length === 0 && open && <p className="muted small-left">No trash talk yet. Start it.</p>}
+      {messages.length === 0 && open && <p className="muted small-left">No trash talk yet. Start it.</p>}
 
       {open && (
         <form className="comment-form" onSubmit={post}>

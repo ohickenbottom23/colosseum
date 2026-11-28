@@ -1680,13 +1680,38 @@ button.chip.talk {
   font-weight: 800;
 }
 
-button.chip.talk.on {
-  background: var(--cream);
-  color: var(--ink);
+button.chip.talk:disabled {
+  opacity: 0.45;
 }
 
-.talk-count {
+/* a quick reaction in the thread: a bold chip, so it stands out from typed comments */
+.talk-chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--cream);
+  color: var(--ink);
+  font-size: 14px;
   font-weight: 800;
+  white-space: nowrap;
+}
+
+.reaction-line .comment-body p {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* on cream cards the chip flips to garnet */
+.call .talk-chip {
+  background: var(--garnet);
+  color: var(--cream);
+}
+
+.talk-chip.small {
+  padding: 1px 8px;
+  font-size: 12px;
 }
 
 .comments {
@@ -1740,29 +1765,29 @@ button.chip.talk.on {
 }
 
 /* trash talk counts on home cards */
-.call-talk {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.talk-pill {
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(42, 10, 12, 0.08);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.talk-comments {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+/* the newest trash talk message on a home card, one line */
+.call-latest {
+  margin: 0;
   font-size: 13px;
-  font-weight: 700;
   color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.call-latest strong {
+  color: var(--ink);
+}
+
+.call-latest svg {
+  vertical-align: -2px;
+}
+
+/* a quiet link under a card, like "View result" */
+a.card-link {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--garnet);
 }
 
 /* ---------- motion (phase 6). quick, and off when the phone asks for reduced motion ---------- */
@@ -1966,4 +1991,67 @@ button.chip.talk.on {
 .settle-note {
   margin: 0;
   font-size: 13px;
+}
+
+/* a settled call on the call page: the result screen, smaller, on a cream card */
+.result-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.result-summary .label.result-summary-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.result-summary h3 {
+  margin: 0;
+  font-size: 30px;
+}
+
+.result-summary .result-summary-mine {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+/* glory on cream is garnet, gold is too faint there */
+.result-summary .glory {
+  color: var(--garnet);
+}
+
+.result-summary .big-number {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.result-summary-tokens {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.result-who.small {
+  margin: 0;
+  font-size: 14px;
+}
+
+.result-summary .result-names {
+  color: var(--muted);
+}
+
+.result-summary-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.result-summary-actions button.main {
+  width: 100%;
 }

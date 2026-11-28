@@ -46,7 +46,6 @@ export function voidReasonText(reason: string | null, creatorName: string): stri
   if (reason === "no_takers") return "Nobody else joined, so it didn't count.";
   if (reason === "not_resolved") return `${creatorName} didn't settle it in time.`;
   if (reason === "subject_killed") return "The person it was about took it down.";
-  if (reason === "tied_vote") return "The vote came out even.";
   if (reason === "member_left") return "Someone it depended on left the arena.";
   return "It didn't count.";
 }
@@ -143,4 +142,12 @@ export function settleSummary(call: Prediction, positions: Position[], outcome: 
   const shown = parts.length > 4 ? [...parts.slice(0, 3), `${parts.length - 3} more`] : parts;
   const line = shown.join(", ");
   return line.charAt(0).toUpperCase() + line.slice(1) + ".";
+}
+
+// "You, Sam, Maya": a list of people with you first
+export function namesYouFirst(uids: string[], myUid: string, nameOf: (uid: string) => string): string {
+  return [...uids]
+    .sort((a, b) => Number(b === myUid) - Number(a === myUid))
+    .map((u) => (u === myUid ? "You" : nameOf(u).split(" ")[0]))
+    .join(", ");
 }

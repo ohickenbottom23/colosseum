@@ -17,7 +17,6 @@ export type VoidReason =
   | "no_takers" // nobody but the creator joined
   | "not_resolved" // creator missed the 48 hour window
   | "subject_killed" // the person it was about deleted it
-  | "tied_vote" // dispute vote came out even
   | "member_left"; // the person who made it, or the person it was about, left the arena
 
 export interface User {
@@ -29,6 +28,7 @@ export interface User {
   wins: number;
   calls: number; // resolved calls they took a side on
   missedResolves: number; // reliability hit for letting calls void
+  overruled: number; // calls they settled that a dispute vote overturned
   arenaIds: string[]; // arenas they're in. only Cloud Functions change this, the rules read it
   lastGrantDate: string; // "2026-11-20" in their timezone, for the daily token grant
   timeZone: string; // like "America/Chicago", decides when their day starts
@@ -66,8 +66,8 @@ export interface Prediction {
   // disputes. a call can be disputed once, in the 24 hours after it's settled
   disputedBy?: string;
   disputedAt?: number;
-  votes?: Record<string, Side>; // uid -> what they say really happened
-  disputeResult?: "upheld" | "flipped" | "void"; // how the vote came out
+  votes?: Record<string, Side>; // uid -> what they say really happened. anyone in the arena can vote
+  disputeResult?: "upheld" | "flipped"; // how the vote came out (a tie keeps the creator's result)
 }
 
 export interface Position {
@@ -99,21 +99,17 @@ export interface Payout {
   won: boolean;
 }
 
-// trash talk. these are the one thing the app writes straight to Firestore, since they
-// never touch glory or tokens. the rules still check who you are and that you're in the arena
+// trash talk. the one thing the app writes straight to Firestore, since it never touches
+// glory or tokens. the rules still check who you are and that you're in the arena
 export type ReactionType = "noshot" | "lockit" | "cap";
 
-// predictions/{id}/reactions/{uid}: one per person per call
-export interface Reaction {
-  uid: string;
-  type: ReactionType;
-}
-
-// predictions/{id}/comments/{commentId}
+// predictions/{id}/comments/{commentId}: one message in the thread. either a typed comment,
+// or a quick reaction (reaction set, text empty)
 export interface Comment {
   id: string;
   uid: string;
   text: string;
+  reaction?: ReactionType;
   createdAt: number; // millis, from the server's clock
   edited: boolean;
 }

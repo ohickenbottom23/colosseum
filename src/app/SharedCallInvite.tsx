@@ -19,8 +19,7 @@ export type InvitePreview = {
     subject: (Face & { name: string }) | null;
     yes: Face[];
     no: Face[];
-    reactions: number;
-    comments: number;
+    messages: number; // trash talk, comments and quick reactions together
   } | null;
 };
 
@@ -69,8 +68,7 @@ export default function SharedCallInvite({ preview }: { preview: InvitePreview }
             </div>
             <div className="invite-call-foot">
               <span>
-                <strong>{call.reactions}</strong> {call.reactions === 1 ? "reaction" : "reactions"} · <strong>{call.comments}</strong>{" "}
-                {call.comments === 1 ? "comment" : "comments"}
+                <strong>{call.messages}</strong> {call.messages === 1 ? "message" : "messages"} of trash talk
               </span>
               {call.status === "open" && <span className="invite-call-closes">{picksCloseText(closeAt, Date.now())}</span>}
             </div>

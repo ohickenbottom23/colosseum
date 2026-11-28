@@ -13,12 +13,14 @@ import { Position, Prediction, Side } from "@/lib/types";
 export default function DisputeBox({
   call,
   positions,
+  memberIds,
   myUid,
   nameOf,
   startOpen = false,
 }: {
   call: Prediction;
   positions: Position[];
+  memberIds: string[]; // everyone in the arena gets a vote
   myUid: string;
   nameOf: (uid: string) => string;
   startOpen?: boolean; // came from "Dispute it" on the result screen
@@ -57,13 +59,14 @@ export default function DisputeBox({
   if (call.status === "disputed") {
     const votes = call.votes ?? {};
     const myVote = votes[myUid];
-    const voteProblem = canVote(call, myUid, pickedASide, now);
+    const voteProblem = canVote(call, myUid, memberIds.includes(myUid), now);
     return (
       <div className="panel dispute">
         <p className="label">Disputed</p>
         <p>
-          {firstName(call.disputedBy ?? "")} said it went the other way. Everyone who picked a side votes on what really
-          happened. Majority wins, and a tie means it doesn&apos;t count.
+          {firstName(call.disputedBy ?? "")} said it went the other way. Everyone in the arena votes on what really
+          happened. It takes a majority to change it, and a tie keeps {firstName(call.creatorId) === "You" ? "your" : `${firstName(call.creatorId)}'s`}{" "}
+          result.
         </p>
 
         {!voteProblem && !vote && (
@@ -77,7 +80,7 @@ export default function DisputeBox({
             <p>
               Vote that it really was <strong>{vote.toUpperCase()}</strong>? You can&apos;t change your vote.
             </p>
-            <button className="main" onClick={() => send("voteOnDispute", { side: vote })} disabled={working}>
+            <button onClick={() => send("voteOnDispute", { side: vote })} disabled={working}>
               {working ? "Voting..." : `Vote ${vote.toUpperCase()}`}
             </button>
             <button className="secondary" onClick={() => setVote(null)} disabled={working}>
@@ -94,7 +97,7 @@ export default function DisputeBox({
         )}
 
         <p className="muted small">
-          {Object.keys(votes).length} of {positions.length} voted · {timeLeft(votingEndsAt(call), now)}
+          {Object.keys(votes).length} of {memberIds.length} voted · {timeLeft(votingEndsAt(call), now)}
         </p>
         {error && <p className="error">{error}</p>}
       </div>
@@ -116,11 +119,10 @@ export default function DisputeBox({
       ) : (
         <div className="form">
           <p>
-            Dispute this result? Everyone who picked a side gets 24 hours to vote on what really happened. Majority wins,
-            and a tie means the call doesn&apos;t count and everyone gets their tokens back. A call can only be disputed
-            once.
+            Dispute this result? Everyone in the arena gets 24 hours to vote on what really happened. It takes a majority
+            to change it, and a tie keeps the result as it is. A call can only be disputed once.
           </p>
-          <button className="main" onClick={() => send("disputeCall", {})} disabled={working}>
+          <button onClick={() => send("disputeCall", {})} disabled={working}>
             {working ? "Starting the vote..." : "Start the vote"}
           </button>
           <button className="secondary" onClick={() => setConfirming(false)} disabled={working}>

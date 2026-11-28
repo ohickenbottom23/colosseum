@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { auth, db } from "@/firebase";
-import { useAuthUser, useCallPositions, useMyArenas, useMyPositions, usePlayer, usePlayers, useSeenResults, useTalkCounts } from "@/hooks";
+import { useAuthUser, useCallPositions, useLatestTalk, useMyArenas, useMyPositions, usePlayer, usePlayers, useSeenResults } from "@/hooks";
 import { resultLine, timeUntil } from "@/format";
 import { Prediction } from "@/lib/types";
 import { picksCloseAt } from "@/lib/resolve";
@@ -77,8 +77,8 @@ export default function Home() {
     );
   }, [arenaKey]);
 
-  // disputed calls you picked a side on and haven't voted on yet. they go at the top
-  const needsVote = authUser ? finished.filter((c) => !canVote(c, authUser.uid, myPositions.has(c.id), Date.now())) : [];
+  // disputed calls in your arenas you haven't voted on yet (everyone in the arena votes). they go at the top
+  const needsVote = authUser ? finished.filter((c) => !canVote(c, authUser.uid, true, Date.now())) : [];
   // finished calls you played in or made (only the latest few)
   const recent = authUser
     ? finished.filter((c) => (myPositions.has(c.id) || c.creatorId === authUser.uid) && !needsVote.includes(c)).slice(0, 10)
@@ -100,8 +100,8 @@ export default function Home() {
   // who picked what on every call on this screen, for the split bars and faces
   const onScreen = [...calls, ...needsVote, ...recent].map((c) => c.id);
   const positionsByCall = useCallPositions(onScreen);
-  // and the trash talk on them, for the counts on each card
-  const talk = useTalkCounts(onScreen);
+  // and the newest trash talk message on each
+  const latestTalk = useLatestTalk(onScreen);
 
   if (loading) return <main><p>Loading...</p></main>;
 
@@ -162,7 +162,7 @@ export default function Home() {
     return `Result: ${c.outcome?.toUpperCase()}`;
   }
 
-  const card = (c: Prediction, note?: string, action?: { label: string; href: string }) => (
+  const card = (c: Prediction, note?: string, action?: { label: string; href: string; quiet?: boolean }) => (
     <CallCard
       key={c.id}
       call={c}
@@ -172,8 +172,7 @@ export default function Home() {
       arenaName={arenaName(c.arenaId)}
       note={note}
       now={now}
-      reactions={talk.reactions[c.id]}
-      commentCount={talk.commentCounts[c.id]}
+      latest={latestTalk[c.id]}
       action={action}
     />
   );
@@ -280,7 +279,18 @@ export default function Home() {
       {recent.length > 0 && (
         <>
           <h2>Recent results</h2>
-          <ul className="calls">{recent.map((c) => card(c, recentNote(c)))}</ul>
+          <ul className="calls">
+            {recent.map((c) =>
+              // settled calls you were in can reopen the full result screen any time
+              card(
+                c,
+                recentNote(c),
+                c.status !== "void" && myPositions.get(c.id)?.rankResult
+                  ? { label: "View result", href: `/result/${c.id}`, quiet: true }
+                  : undefined
+              )
+            )}
+          </ul>
         </>
       )}
 

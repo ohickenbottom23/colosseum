@@ -41,9 +41,10 @@ Playing
 Resolution
 - The creator resolves it within 48 hours of the deadline. If they don't, it's voided, everyone gets their stake back, and the creator's `missedResolves` goes up.
 - Before saving, settling shows a confirm step saying what it does to tokens ("Settle as YES? Riley loses 10 tokens, you get 15 back.")
-- Any participant can dispute a result, within 24 hours of it being settled, once per call (`disputeCall`). Then participants vote, majority wins, and a tie voids it.
-  - The vote starts with the creator's vote (the result they settled) and the disputer's (the other side). Everyone else who picked a side gets 24 hours to vote (`voteOnDispute`), and the sweep decides it with the votes it has after that. With only two people in a call, a dispute is an instant tie.
-  - Glory and tokens move when the call is settled, not after the dispute window. If the vote flips it or ties, `redoResult` in `src/lib/disputes.ts` takes back what the first result did (tokens can't go below 0, rank only goes back if nothing else moved it since) and applies the new result.
+- Any participant can dispute a result, within 24 hours of it being settled, once per call (`disputeCall`). Then the whole arena votes, one vote per member, whether or not they picked a side (`voteOnDispute`).
+  - The vote starts with the creator's vote (the result they settled) and the disputer's (the other side). Members get 24 hours, and it ends early once everyone in the arena has voted. After that the sweep decides it with the votes it has.
+  - It takes a majority to overturn the creator. A tie keeps the creator's result, with no refunds.
+  - If the vote overturns it, the creator's `overruled` count goes up (separate from `missedResolves`), and `redoResult` in `src/lib/disputes.ts` takes back what the first result did (tokens can't go below 0, rank only goes back if nothing else moved it since) and applies the other side's result. Glory and tokens move when the call is settled, not after the dispute window.
 
 Arenas
 - An arena has a name, members (max 50), and an invite link. Any member can invite. A player can be in up to 30 arenas.
@@ -76,6 +77,15 @@ Ranks (logic in `src/lib/ranks.ts`, tiers in `RANKS` in `src/lib/constants.ts`)
 - Voided calls never move rank
 - `rankTier` and `onTheLine` live on the user and only the settle Cloud Function changes them. Each settled position gets a `rankResult` (before, after, onTheLine, gloryAfter) for the result screen.
 
+Result moment
+- The first time someone opens the app after a call they were in settles, home sends them to the full result screen (`/result/{id}`): Called it or Not this time, Glory change, rank bar moving up or down, who was right and who missed, Share to the group chat.
+- The settled call page shows a smaller version of the same (`ResultSummary`), and Recent results cards have a "View result" link back to the full screen.
+
+Trash talk
+- One thread per call (`predictions/{id}/comments`), only for arena members. Typed comments (up to 200 characters), plus quick reactions (No shot, Lock it, Cap) posted into the same thread as bold chips. No counts.
+- You can't post the same quick reaction twice in a row (checked in the app; the rules can't see the latest message). The same quick reaction from different people in a row merges into one line ("Riley, Ava and 2 others: No shot").
+- You can delete your own messages and edit your own typed comments. Home cards show the latest message.
+
 Multipliers
 - A side's multiplier = the whole pot / total staked on that side. When previewing a pick, include the player's own stake in both.
 - Shown as "1.1x return" (see Wording). It matches `settle` give or take a token of rounding, and there's a test for that.
@@ -89,7 +99,7 @@ Friends will try to cheat. Clients must never write glory, tokens, wins, calls, 
 - Settling, voiding, and the daily grant happen in Cloud Functions
 - Firestore rules block clients from editing those fields
 - Membership lives in two places that change together, only in Cloud Functions: `arenas/{id}.memberIds` and `users/{uid}.arenaIds`. The rules check `arenaIds` on your own user doc.
-- Firestore rules: only members of a call's arena can read the call and its sides (and later reactions and comments). Queries must filter by `arenaId` (home uses `arenaId in [your arenas]`), or the rules turn them down.
+- Firestore rules: only members of a call's arena can read the call, its sides, and its trash talk. Queries must filter by `arenaId` (home uses `arenaId in [your arenas]`), or the rules turn them down.
 - `npm run test:rules` and `npm run test:functions` run against the emulators. Add cases there when touching rules or functions.
 
 ## V1 scope

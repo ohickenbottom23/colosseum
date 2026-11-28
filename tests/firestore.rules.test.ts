@@ -80,6 +80,8 @@ describe("users", () => {
     await assertFails(updateDoc(doc(as("maya"), "users/maya"), { glory: 9999 }));
     await assertFails(updateDoc(doc(as("maya"), "users/maya"), { tokens: 9999 }));
     await assertFails(updateDoc(doc(as("maya"), "users/maya"), { wins: 50, calls: 50 }));
+    // being overruled on a dispute is on your record, and you can't wipe it
+    await assertFails(updateDoc(doc(as("maya"), "users/maya"), { overruled: 0, missedResolves: 0 }));
   });
 
   it("you can't change your own timezone or grant date to get extra daily tokens", async () => {
@@ -272,56 +274,58 @@ describe("positions", () => {
 });
 
 describe("trash talk", () => {
-  // what the app sends: who, what, and the server's clock
-  const reaction = (uid: string, type: string) => ({ uid, type, createdAt: serverTimestamp() });
+  // what the app sends: who, what, and the server's clock. a quick reaction is a message with no text
+  const reaction = (uid: string, type: string) => ({ uid, text: "", reaction: type, createdAt: serverTimestamp(), edited: false });
   const comment = (uid: string, text: string) => ({ uid, text, createdAt: serverTimestamp(), edited: false });
 
   beforeEach(async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
-      await setDoc(doc(db, "predictions/p1/reactions/jake"), { uid: "jake", type: "cap", createdAt: new Date() });
+      await setDoc(doc(db, "predictions/p1/comments/r1"), { uid: "jake", text: "", reaction: "cap", createdAt: new Date(), edited: false });
       await setDoc(doc(db, "predictions/p1/comments/c1"), { uid: "jake", text: "screenshot this", createdAt: new Date(), edited: false });
       // a call the person it was about took down (the text gets wiped)
       await setDoc(doc(db, "predictions/gone"), { text: "", creatorId: "maya", status: "void", arenaId: "third" });
     });
   });
 
-  it("members can react, switch their reaction, and take it back", async () => {
-    await assertSucceeds(setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), reaction("maya", "noshot")));
-    await assertSucceeds(setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), reaction("maya", "lockit")));
-    await assertSucceeds(deleteDoc(doc(as("maya"), "predictions/p1/reactions/maya")));
+  it("members can post quick reactions in the thread and delete their own", async () => {
+    await assertSucceeds(setDoc(doc(as("maya"), "predictions/p1/comments/r2"), reaction("maya", "noshot")));
+    await assertSucceeds(deleteDoc(doc(as("maya"), "predictions/p1/comments/r2")));
+    await assertFails(deleteDoc(doc(as("maya"), "predictions/p1/comments/r1")));
+    await assertSucceeds(deleteDoc(doc(as("jake"), "predictions/p1/comments/r1")));
   });
 
-  it("members can see reactions and comments", async () => {
-    await assertSucceeds(getDocs(collection(as("maya"), "predictions/p1/reactions")));
+  it("members can see the thread", async () => {
     await assertSucceeds(getDocs(collection(as("maya"), "predictions/p1/comments")));
   });
 
-  it("people outside the arena can't see or add any", async () => {
-    await assertFails(getDocs(collection(as("sam"), "predictions/p1/reactions")));
+  it("people outside the arena can't see or add to it", async () => {
     await assertFails(getDocs(collection(as("sam"), "predictions/p1/comments")));
-    await assertFails(setDoc(doc(as("sam"), "predictions/p1/reactions/sam"), reaction("sam", "cap")));
+    await assertFails(setDoc(doc(as("sam"), "predictions/p1/comments/r2"), reaction("sam", "cap")));
     await assertFails(setDoc(doc(as("sam"), "predictions/p1/comments/c2"), comment("sam", "hi")));
     await assertFails(getDocs(collection(signedOut(), "predictions/p1/comments")));
   });
 
-  it("you can't react as someone else or take back someone else's", async () => {
-    await assertFails(setDoc(doc(as("maya"), "predictions/p1/reactions/jake"), reaction("jake", "noshot")));
-    await assertFails(setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), reaction("jake", "noshot")));
-    await assertFails(deleteDoc(doc(as("maya"), "predictions/p1/reactions/jake")));
+  it("you can't react as someone else", async () => {
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/comments/r2"), reaction("jake", "noshot")));
   });
 
-  it("only the three preset reactions, nothing extra on them", async () => {
-    await assertFails(setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), reaction("maya", "fire")));
-    await assertFails(
-      setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), { ...reaction("maya", "cap"), glory: 999 })
-    );
+  it("only the three quick reactions, with no text and nothing extra on them", async () => {
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/comments/r2"), reaction("maya", "fire")));
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/comments/r2"), { ...reaction("maya", "cap"), text: "and more" }));
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/comments/r2"), { ...reaction("maya", "cap"), glory: 999 }));
+  });
+
+  it("a quick reaction can't be edited into something else", async () => {
+    await assertFails(updateDoc(doc(as("jake"), "predictions/p1/comments/r1"), { text: "sneaky edit", edited: true }));
+  });
+
+  it("the old one-reaction-per-person spot is closed", async () => {
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), { uid: "maya", type: "cap", createdAt: serverTimestamp() }));
   });
 
   it("you can't backdate a reaction or comment", async () => {
-    await assertFails(
-      setDoc(doc(as("maya"), "predictions/p1/reactions/maya"), { uid: "maya", type: "cap", createdAt: new Date(2000, 0, 1) })
-    );
+    await assertFails(setDoc(doc(as("maya"), "predictions/p1/comments/r2"), { ...reaction("maya", "cap"), createdAt: new Date(2000, 0, 1) }));
     await assertFails(
       setDoc(doc(as("maya"), "predictions/p1/comments/c2"), { uid: "maya", text: "hi", createdAt: new Date(2000, 0, 1), edited: false })
     );
@@ -352,7 +356,7 @@ describe("trash talk", () => {
   });
 
   it("nobody can react or comment on a call the subject took down", async () => {
-    await assertFails(setDoc(doc(as("maya"), "predictions/gone/reactions/maya"), reaction("maya", "cap")));
+    await assertFails(setDoc(doc(as("maya"), "predictions/gone/comments/r1"), reaction("maya", "cap")));
     await assertFails(setDoc(doc(as("maya"), "predictions/gone/comments/c1"), comment("maya", "lol")));
   });
 });

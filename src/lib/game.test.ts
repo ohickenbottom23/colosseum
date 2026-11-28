@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Position, Prediction, User } from "./types";
+import { Comment, Position, Prediction, User } from "./types";
 import {
   stakeFactor,
   contrarianScore,
@@ -28,8 +28,8 @@ import {
 } from "./resolve";
 import { deadlineFromPreset, validateNewCall, NewCall } from "./calls";
 import { validateArenaName, isMember, canJoinArena, canMakeArena, canLeaveArena, canRemoveMember, ownerAfterLeaving, defaultArena } from "./arenas";
-import { REACTIONS, countReactions, tapReaction, validateComment, isReactionType } from "./trashTalk";
-import { canDispute, openingVotes, canVote, voteIsOver, disputeResult, payoutsAfterVote, redoResult } from "./disputes";
+import { REACTIONS, validateComment, isReactionType, canQuickReact, talkLines, lineUids, joinNames } from "./trashTalk";
+import { canDispute, openingVotes, canVote, voteIsOver, disputeResult, payoutsAfterFlip, redoResult } from "./disputes";
 import { playerAfter } from "./resolve";
 import { tierForGlory, rankName, progressToNext, nextRankState, rankOutlook, sideMultiplier, formatMultiplier } from "./ranks";
 
@@ -70,6 +70,7 @@ const makeUser = (overrides: Partial<User> = {}): User => ({
   wins: 0,
   calls: 0,
   missedResolves: 0,
+  overruled: 0,
   arenaIds: ["a1"],
   lastGrantDate: "2026-11-19",
   timeZone: "America/Chicago",
@@ -649,26 +650,50 @@ describe("multipliers", () => {
 });
 
 describe("trash talk", () => {
-  it("has the three preset reactions", () => {
+  // a message in the thread: a typed comment, or a quick reaction
+  let t = 0;
+  const said = (uid: string, text: string): Comment => ({ id: `m${++t}`, uid, text, createdAt: t, edited: false });
+  const reacted = (uid: string, reaction: "noshot" | "lockit" | "cap"): Comment => ({ ...said(uid, ""), reaction });
+
+  it("has the three quick reactions", () => {
     expect(REACTIONS.map((r) => r.label)).toEqual(["No shot", "Lock it", "Cap"]);
     expect(isReactionType("cap")).toBe(true);
     expect(isReactionType("fire")).toBe(false);
   });
 
-  it("counts reactions by type", () => {
-    const reactions = [
-      { uid: "a", type: "noshot" as const },
-      { uid: "b", type: "noshot" as const },
-      { uid: "c", type: "cap" as const },
-    ];
-    expect(countReactions(reactions)).toEqual({ noshot: 2, lockit: 0, cap: 1 });
-    expect(countReactions([])).toEqual({ noshot: 0, lockit: 0, cap: 0 });
+  it("you can't post the same quick reaction twice in a row", () => {
+    const thread = [said("ava", "he's never making it"), reacted("riley", "noshot")];
+    expect(canQuickReact(thread, "riley", "noshot")).toBe("You already said No shot");
+    expect(canQuickReact(thread, "riley", "cap")).toBeNull(); // a different one is fine
+    expect(canQuickReact(thread, "ava", "noshot")).toBeNull(); // someone else can join in
+    // riley's still in the run after ava joins it
+    expect(canQuickReact([...thread, reacted("ava", "noshot")], "riley", "noshot")).toBe("You already said No shot");
+    // once someone says something else, it's a new run
+    expect(canQuickReact([...thread, said("sam", "lol")], "riley", "noshot")).toBeNull();
   });
 
-  it("tapping picks, switches, or takes back your reaction", () => {
-    expect(tapReaction(null, "cap")).toBe("cap");
-    expect(tapReaction("cap", "lockit")).toBe("lockit");
-    expect(tapReaction("cap", "cap")).toBeNull();
+  it("the same quick reaction from different people in a row merges into one line", () => {
+    const thread = [
+      reacted("riley", "noshot"),
+      reacted("ava", "noshot"),
+      reacted("sam", "noshot"),
+      said("jake", "watch me"),
+      reacted("jake", "lockit"),
+      reacted("riley", "noshot"),
+    ];
+    const lines = talkLines(thread);
+    expect(lines.map((l) => l.kind)).toEqual(["reaction", "comment", "reaction", "reaction"]);
+    expect(lines[0].kind === "reaction" && lineUids(lines[0].messages)).toEqual(["riley", "ava", "sam"]);
+    expect(lines[2].kind === "reaction" && lines[2].type).toBe("lockit");
+  });
+
+  it("names on a merged line", () => {
+    expect(joinNames(["Riley"])).toBe("Riley");
+    expect(joinNames(["Riley", "Ava"])).toBe("Riley and Ava");
+    expect(joinNames(["Riley", "Ava", "Sam"])).toBe("Riley, Ava and Sam");
+    expect(joinNames(["Riley", "Ava", "Sam", "Jake"])).toBe("Riley, Ava and 2 others");
+    // someone in a merged line twice (after a message between them got deleted) only shows once
+    expect(lineUids([reacted("riley", "cap"), reacted("riley", "cap")])).toEqual(["riley"]);
   });
 
   it("comments need some text, up to 200 characters", () => {
@@ -781,9 +806,11 @@ describe("default arena", () => {
 });
 
 describe("disputing a settled call", () => {
-  // maya made it and backed YES, jake and sam picked NO, maya settled it YES on day 10
+  // maya made it and backed YES, jake and sam picked NO, maya settled it YES on day 10.
+  // nora's in the arena too but didn't pick a side
   const settled = makePrediction({ status: "resolved", outcome: "yes", resolvedAt: 10 * DAY });
   const positions = [pos("maya", "yes", 20), pos("jake", "no", 10), pos("sam", "no", 30)];
+  const members = ["maya", "jake", "sam", "nora"];
 
   it("anyone who picked a side can dispute it for 24 hours, once", () => {
     expect(canDispute(settled, "jake", true, 10 * DAY + 1000)).toBeNull();
@@ -802,57 +829,47 @@ describe("disputing a settled call", () => {
 
   const voting = { ...settled, status: "disputed" as const, disputedAt: 10.5 * DAY, votes: openingVotes(settled, "jake") };
 
-  it("everyone who picked a side gets one vote, for 24 hours", () => {
+  it("everyone in the arena gets one vote, for 24 hours, even if they didn't pick a side", () => {
     expect(canVote(voting, "sam", true, 11 * DAY)).toBeNull();
+    expect(canVote(voting, "nora", true, 11 * DAY)).toBeNull();
     expect(canVote(voting, "jake", true, 11 * DAY)).toBe("You already voted");
-    expect(canVote(voting, "nora", false, 11 * DAY)).toBe("Only people who picked a side can vote");
+    expect(canVote(voting, "ben", false, 11 * DAY)).toBe("Only people in this arena can vote");
     expect(canVote(voting, "sam", true, 11.5 * DAY + 1)).toBe("Voting is over");
     expect(canVote(settled, "sam", true, 11 * DAY)).toBe("There's no vote on this call");
   });
 
-  it("ends when everyone has voted or the time is up", () => {
-    expect(voteIsOver(voting, positions, 11 * DAY)).toBe(false);
-    expect(voteIsOver({ ...voting, votes: { ...voting.votes, sam: "no" } }, positions, 11 * DAY)).toBe(true);
-    expect(voteIsOver(voting, positions, 11.5 * DAY + 1)).toBe(true);
+  it("ends when the whole arena has voted or the time is up", () => {
+    expect(voteIsOver({ ...voting, votes: { ...voting.votes, sam: "no" } }, members, 11 * DAY)).toBe(false); // nora's left
+    expect(voteIsOver({ ...voting, votes: { ...voting.votes, sam: "no", nora: "yes" } }, members, 11 * DAY)).toBe(true);
+    expect(voteIsOver(voting, members, 11.5 * DAY + 1)).toBe(true);
   });
 
-  it("majority decides, and a tie voids it", () => {
+  it("takes a majority to overturn, and a tie keeps the creator's result", () => {
     expect(disputeResult({ ...voting, votes: { maya: "yes", jake: "no", sam: "no" } })).toBe("flipped");
     expect(disputeResult({ ...voting, votes: { maya: "yes", jake: "no", sam: "yes" } })).toBe("upheld");
-    expect(disputeResult(voting)).toBe("void");
+    expect(disputeResult(voting)).toBe("upheld"); // 1 to 1
+    expect(disputeResult({ ...voting, votes: { maya: "yes", jake: "no", sam: "no", nora: "yes" } })).toBe("upheld");
   });
 
   // settle a call for everyone the way the server does, from the same starting numbers
   const start = makeUser({ glory: 140, tokens: 30, wins: 2, calls: 5, rankTier: 1, onTheLine: false });
-  const settleAll = (payouts: ReturnType<typeof payoutsAfterVote>, counted: boolean) =>
-    new Map(payouts.map((p) => [p.uid, playerAfter(start, p, counted)]));
+  const settleAll = (payouts: ReturnType<typeof payoutsAfterFlip>) => new Map(payouts.map((p) => [p.uid, playerAfter(start, p, true)]));
 
   it("a flipped vote ends everyone up where settling it the other way would have", () => {
-    const first = settleAll(payoutsAfterVote(positions, { ...settled, outcome: "no" }, "flipped"), true); // settled YES
-    const straightToNo = settleAll(payoutsAfterVote(positions, settled, "flipped"), true); // as if settled NO
+    const yesPayouts = payoutsAfterFlip(positions, { ...settled, outcome: "no" }); // how it was settled
+    const noPayouts = payoutsAfterFlip(positions, settled); // what the vote says
+    const first = settleAll(yesPayouts);
+    const straightToNo = settleAll(noPayouts);
     for (const uid of ["maya", "jake", "sam"]) {
       const old = first.get(uid)!;
-      const oldPayout = payoutsAfterVote(positions, { ...settled, outcome: "no" }, "flipped").find((p) => p.uid === uid)!;
-      const newPayout = payoutsAfterVote(positions, settled, "flipped").find((p) => p.uid === uid)!;
-      const redone = redoResult(old.player, { result: oldPayout, rankResult: old.rankResult! }, newPayout, true);
+      const redone = redoResult(
+        old.player,
+        { result: yesPayouts.find((p) => p.uid === uid)!, rankResult: old.rankResult! },
+        noPayouts.find((p) => p.uid === uid)!
+      );
       expect(redone.player).toEqual(straightToNo.get(uid)!.player);
       expect(redone.rankResult).toEqual(straightToNo.get(uid)!.rankResult);
     }
-  });
-
-  it("a tied vote takes the result back and refunds everyone's stake", () => {
-    const yesPayouts = payoutsAfterVote(positions, { ...settled, outcome: "no" }, "flipped");
-    const first = settleAll(yesPayouts, true);
-    const refund = payoutsAfterVote(positions, settled, "void").find((p) => p.uid === "sam")!;
-    const redone = redoResult(
-      first.get("sam")!.player,
-      { result: yesPayouts.find((p) => p.uid === "sam")!, rankResult: first.get("sam")!.rankResult! },
-      refund,
-      false
-    );
-    // back to the start, plus the 30 tokens sam had on it
-    expect(redone.player).toEqual({ tokens: 60, glory: 140, wins: 2, calls: 5, rankTier: 1, onTheLine: false });
-    expect(redone.rankResult).toBeNull();
   });
 
   it("puts a rank up back, but not if something else moved the rank since", () => {
@@ -862,12 +879,12 @@ describe("disputing a settled call", () => {
     expect(after.player.rankTier).toBe(2);
     const loss = { uid: "jake", tokenChange: 0, gloryChange: -10, won: false };
 
-    const redone = redoResult(after.player, { result: win, rankResult: after.rankResult! }, loss, true);
+    const redone = redoResult(after.player, { result: win, rankResult: after.rankResult! }, loss);
     expect(redone.player).toMatchObject({ glory: 130, rankTier: 1, onTheLine: false, wins: 0, calls: 1 });
 
     // they ranked up again on another call since, so the rank stays where it is now
     const moved = { ...after.player, rankTier: 3 };
-    expect(redoResult(moved, { result: win, rankResult: after.rankResult! }, loss, true).player.rankTier).toBe(3);
+    expect(redoResult(moved, { result: win, rankResult: after.rankResult! }, loss).player.rankTier).toBe(3);
   });
 
   it("tokens already spent can't go below 0", () => {
@@ -875,6 +892,6 @@ describe("disputing a settled call", () => {
     const after = playerAfter(makeUser({ glory: 140, tokens: 0 }), win, true);
     const spent = { ...after.player, tokens: 5 }; // spent 35 of the 40 since
     const loss = { uid: "jake", tokenChange: 0, gloryChange: -10, won: false };
-    expect(redoResult(spent, { result: win, rankResult: after.rankResult! }, loss, true).player.tokens).toBe(0);
+    expect(redoResult(spent, { result: win, rankResult: after.rankResult! }, loss).player.tokens).toBe(0);
   });
 });

@@ -1,7 +1,7 @@
 import { Payout, Position, Prediction, RankResult, Side } from "./types";
 import { DISPUTE_WINDOW_MS, VOTE_WINDOW_MS } from "./constants";
 import { applyGlory } from "./glory";
-import { Player, playerAfter, refundAll, settle, tallyVotes } from "./resolve";
+import { Player, playerAfter, settle, tallyVotes } from "./resolve";
 
 // anyone who picked a side can dispute a settled call, for 24 hours after it's settled.
 // a call only gets one dispute
@@ -25,42 +25,40 @@ export function votingEndsAt(call: Prediction): number {
   return (call.disputedAt ?? 0) + VOTE_WINDOW_MS;
 }
 
-export function canVote(call: Prediction, uid: string, pickedASide: boolean, now: number): string | null {
+// everyone in the arena gets one vote, not just the people who picked a side
+export function canVote(call: Prediction, uid: string, inTheArena: boolean, now: number): string | null {
   if (call.status !== "disputed") return "There's no vote on this call";
-  if (!pickedASide) return "Only people who picked a side can vote";
+  if (!inTheArena) return "Only people in this arena can vote";
   if (call.votes?.[uid]) return "You already voted";
   if (now > votingEndsAt(call)) return "Voting is over";
   return null;
 }
 
-// the vote ends once everyone who picked a side has voted, or the 24 hours are up
-export function voteIsOver(call: Prediction, positions: Position[], now: number): boolean {
+// the vote ends once everyone in the arena has voted, or the 24 hours are up
+export function voteIsOver(call: Prediction, memberIds: string[], now: number): boolean {
   if (call.status !== "disputed") return false;
   const votes = call.votes ?? {};
-  return positions.every((p) => votes[p.uid]) || now > votingEndsAt(call);
+  return memberIds.every((uid) => votes[uid]) || now > votingEndsAt(call);
 }
 
-// how a finished vote comes out: the result stands, it flips, or a tie voids the call
-export function disputeResult(call: Prediction): "upheld" | "flipped" | "void" {
+// how a finished vote comes out. it takes a majority to overturn the creator,
+// so a tie keeps their result
+export function disputeResult(call: Prediction): "upheld" | "flipped" {
   const tally = tallyVotes(Object.values(call.votes ?? {}));
-  if (tally === "void") return "void";
-  return tally === call.outcome ? "upheld" : "flipped";
+  return tally === "void" || tally === call.outcome ? "upheld" : "flipped";
 }
 
-// everyone's new payouts after a vote changes the result
-export function payoutsAfterVote(positions: Position[], call: Prediction, result: "flipped" | "void"): Payout[] {
-  if (result === "void") return refundAll(positions);
+// everyone's payouts once the vote flips the result to the other side
+export function payoutsAfterFlip(positions: Position[], call: Prediction): Payout[] {
   return settle(positions, call.outcome === "yes" ? "no" : "yes");
 }
 
-// take back what the first result did to someone, then apply the new one.
-// counted = false for a tied vote, which just refunds stakes like any voided call
+// take back what the first result did to someone, then apply the flipped one
 export function redoResult(
   user: Player,
   old: { result: Payout; rankResult: RankResult },
-  newPayout: Payout,
-  counted: boolean
-): { player: Player; rankResult: RankResult | null } {
+  newPayout: Payout
+): { player: Player; rankResult: RankResult } {
   // glory goes back by what really moved (the floor can make that less than the payout said)
   const gloryMoved = old.rankResult.gloryAfter - old.rankResult.gloryBefore;
   // rank goes back too, unless something else has moved it since
@@ -75,7 +73,10 @@ export function redoResult(
     onTheLine: rankUntouched ? old.rankResult.onTheLineBefore ?? false : user.onTheLine,
   };
 
-  const redone = playerAfter(undone, newPayout, counted);
-  // tokens they already spent can't come back, so it stops at 0
-  return { ...redone, player: { ...redone.player, tokens: Math.max(0, redone.player.tokens) } };
+  const redone = playerAfter(undone, newPayout, true);
+  return {
+    // tokens they already spent can't come back, so it stops at 0
+    player: { ...redone.player, tokens: Math.max(0, redone.player.tokens) },
+    rankResult: redone.rankResult!,
+  };
 }

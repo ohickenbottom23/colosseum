@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { collection, doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "@/firebase";
 import { useAuthUser, usePlayers } from "@/hooks";
-import { callInviteUrl, formatGlory } from "@/format";
+import { callInviteUrl, formatGlory, namesYouFirst } from "@/format";
 import { formatMultiplier, progressToNext, rankName } from "@/lib/ranks";
 import { canDispute } from "@/lib/disputes";
 import { Arena, Position, Prediction } from "@/lib/types";
@@ -75,12 +75,12 @@ export default function ResultPage() {
   const next = progressToNext(rank.gloryAfter, rank.after);
   const before = progressToNext(rank.gloryBefore, rank.before);
   const nameOf = (u: string) => (u === authUser.uid ? "You" : players.find((p) => p.uid === u)?.displayName.split(" ")[0] ?? "Someone");
+  const fullName = (u: string) => players.find((p) => p.uid === u)?.displayName ?? "Someone";
 
   const right = positions.filter((p) => p.side === call.outcome);
   const wrong = positions.filter((p) => p.side !== call.outcome);
   // "You, Sam" with you first
-  const names = (list: Position[]) =>
-    [...list].sort((a, b) => Number(b.uid === authUser.uid) - Number(a.uid === authUser.uid)).map((p) => nameOf(p.uid)).join(", ");
+  const names = (list: Position[]) => namesYouFirst(list.map((p) => p.uid), authUser.uid, fullName);
 
   // one line about how it went
   const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;

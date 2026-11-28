@@ -19,7 +19,7 @@ import {
   sweepDecision,
 } from "../../src/lib/resolve";
 import { NewCall, validateNewCall } from "../../src/lib/calls";
-import { canDispute, canVote, disputeResult, openingVotes, payoutsAfterVote, redoResult, voteIsOver } from "../../src/lib/disputes";
+import { canDispute, canVote, disputeResult, openingVotes, payoutsAfterFlip, redoResult, voteIsOver } from "../../src/lib/disputes";
 import { dailyGrant, localDate, pickTimeZone } from "../../src/lib/tokens";
 
 initializeApp();
@@ -54,6 +54,7 @@ export const ensureUser = onCall(async (request) => {
         wins: 0,
         calls: 0,
         missedResolves: 0,
+        overruled: 0,
         arenaIds: [], // they join or make one next
         rankTier: 1,
         onTheLine: false,
@@ -73,6 +74,7 @@ export const ensureUser = onCall(async (request) => {
     const updates: Partial<User> = {};
     // players made before arenas or ranks existed don't have these yet
     if (!Array.isArray(user.arenaIds)) updates.arenaIds = [];
+    if (typeof user.overruled !== "number") updates.overruled = 0;
     if (typeof user.rankTier !== "number") {
       updates.rankTier = tierForGlory(user.glory);
       updates.onTheLine = false;
@@ -338,11 +340,8 @@ export const previewInvite = onCall(async (request) => {
 
   // names and photos for the faces on the screen. stakes stay private
   const positions = (await callSnap.ref.collection("positions").get()).docs.map((d) => d.data() as Position);
-  // just how much trash talk there is, not what anyone said
-  const [reactionCount, commentCount] = await Promise.all([
-    callSnap.ref.collection("reactions").count().get(),
-    callSnap.ref.collection("comments").count().get(),
-  ]);
+  // just how much trash talk there is (comments and quick reactions), not what anyone said
+  const talkCount = await callSnap.ref.collection("comments").count().get();
   const uids = [...new Set([call.creatorId, ...(call.subjectId ? [call.subjectId] : []), ...positions.map((p) => p.uid)])];
   const users = await db.getAll(...uids.map((u) => db.doc(`users/${u}`)));
   const face = (u: string) => {
@@ -364,8 +363,7 @@ export const previewInvite = onCall(async (request) => {
       subject: call.subjectId ? face(call.subjectId) : null,
       yes: positions.filter((p) => p.side === "yes").map((p) => face(p.uid)),
       no: positions.filter((p) => p.side === "no").map((p) => face(p.uid)),
-      reactions: reactionCount.data().count,
-      comments: commentCount.data().count,
+      messages: talkCount.data().count,
     },
   };
 });
@@ -514,40 +512,47 @@ function cleanCallId(id: unknown): string {
   return callId;
 }
 
-// a vote is over: keep the result, flip it, or void the call on a tie.
-// flipping or voiding takes back what the first result did to everyone, then applies the new one
+// the members of a call's arena, who all get a vote on a dispute. read inside the transaction
+async function arenaMembers(tx: Transaction, arenaId: string): Promise<string[]> {
+  const snap = await tx.get(db.doc(`arenas/${arenaId}`));
+  return snap.exists ? (snap.data() as Arena).memberIds : [];
+}
+
+// a vote is over. a majority against the creator flips the result: everyone's first result is
+// taken back and the other side's applied, and the creator gets an overruled mark.
+// otherwise (including a tie) the creator's result stands and nothing changes
 function finishVote(tx: Transaction, ref: DocumentReference, call: LoadedCall, votes: Record<string, Side>) {
   const prediction = { ...call.prediction, votes };
-  const result = disputeResult(prediction);
-
-  if (result === "upheld") {
+  if (disputeResult(prediction) === "upheld") {
     tx.update(ref, { status: "resolved", votes, disputeResult: "upheld" });
     return;
   }
 
-  const payouts = payoutsAfterVote(call.positions, prediction, result);
-  const counted = result === "flipped";
+  // build each player's update first so the creator's record only gets written once
+  const updates = new Map<string, Record<string, number | boolean>>();
+  const payouts = payoutsAfterFlip(call.positions, prediction);
   for (const position of call.positions) {
     const user = call.users.get(position.uid);
     const payout = payouts.find((p) => p.uid === position.uid);
     if (!user || !payout || !position.result || !position.rankResult) continue;
 
-    const { player, rankResult } = redoResult(user, { result: position.result, rankResult: position.rankResult }, payout, counted);
-    tx.update(db.doc(`users/${position.uid}`), { ...player });
-    tx.update(ref.collection("positions").doc(position.uid), { result: payout, rankResult: rankResult ?? FieldValue.delete() });
+    const { player, rankResult } = redoResult(user, { result: position.result, rankResult: position.rankResult }, payout);
+    updates.set(position.uid, { ...player });
+    tx.update(ref.collection("positions").doc(position.uid), { result: payout, rankResult });
     // so home shows them the result screen again with the new result
-    if (counted) tx.delete(db.doc(`users/${position.uid}/seen/${ref.id}`));
+    tx.delete(db.doc(`users/${position.uid}/seen/${ref.id}`));
   }
 
-  if (counted) {
-    const outcome: Side = prediction.outcome === "yes" ? "no" : "yes";
-    tx.update(ref, { status: "resolved", outcome, votes, disputeResult: "flipped", resolvedAt: Date.now() });
-  } else {
-    tx.update(ref, { status: "void", voidReason: "tied_vote", votes, disputeResult: "void", resolvedAt: Date.now() });
-  }
+  const creatorId = prediction.creatorId;
+  const creator = call.users.get(creatorId);
+  if (creator) updates.set(creatorId, { ...updates.get(creatorId), overruled: (creator.overruled ?? 0) + 1 });
+  for (const [uid, fields] of updates) tx.update(db.doc(`users/${uid}`), fields);
+
+  const outcome: Side = prediction.outcome === "yes" ? "no" : "yes";
+  tx.update(ref, { status: "resolved", outcome, votes, disputeResult: "flipped", resolvedAt: Date.now() });
 }
 
-// someone who picked a side says the result is wrong. starts a vote among everyone who picked a side
+// someone who picked a side says the result is wrong. starts a vote for the whole arena
 export const disputeCall = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first");
   const uid = request.auth.uid;
@@ -556,6 +561,7 @@ export const disputeCall = onCall(async (request) => {
   const status = await db.runTransaction(async (tx) => {
     const call = await loadCall(tx, ref);
     if (!call) throw new HttpsError("not-found", "That call doesn't exist");
+    const members = await arenaMembers(tx, call.prediction.arenaId);
     const pickedASide = call.positions.some((p) => p.uid === uid);
     const problem = canDispute(call.prediction, uid, pickedASide, Date.now());
     if (problem) throw new HttpsError("failed-precondition", problem);
@@ -563,8 +569,8 @@ export const disputeCall = onCall(async (request) => {
     const now = Date.now();
     const votes = openingVotes(call.prediction, uid);
     const disputed: Prediction = { ...call.prediction, status: "disputed", disputedBy: uid, disputedAt: now, votes };
-    // with just two people in it, both have already voted, so it's over right away
-    if (voteIsOver(disputed, call.positions, now)) {
+    // in a two person arena both have already voted, so it's over right away (a tie, so the result stands)
+    if (voteIsOver(disputed, members, now)) {
       finishVote(tx, ref, { ...call, prediction: disputed }, votes);
       return "finished";
     }
@@ -575,7 +581,7 @@ export const disputeCall = onCall(async (request) => {
   return { status };
 });
 
-// a vote on what really happened. ends the vote once everyone's in
+// a vote on what really happened, from anyone in the arena. ends the vote once everyone's in
 export const voteOnDispute = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first");
   const uid = request.auth.uid;
@@ -586,12 +592,12 @@ export const voteOnDispute = onCall(async (request) => {
   const status = await db.runTransaction(async (tx) => {
     const call = await loadCall(tx, ref);
     if (!call) throw new HttpsError("not-found", "That call doesn't exist");
-    const pickedASide = call.positions.some((p) => p.uid === uid);
-    const problem = canVote(call.prediction, uid, pickedASide, Date.now());
+    const members = await arenaMembers(tx, call.prediction.arenaId);
+    const problem = canVote(call.prediction, uid, members.includes(uid), Date.now());
     if (problem) throw new HttpsError("failed-precondition", problem);
 
     const votes = { ...call.prediction.votes, [uid]: side as Side };
-    if (voteIsOver({ ...call.prediction, votes }, call.positions, Date.now())) {
+    if (voteIsOver({ ...call.prediction, votes }, members, Date.now())) {
       finishVote(tx, ref, call, votes);
       return "finished";
     }
@@ -710,7 +716,9 @@ async function sweep(): Promise<number> {
   for (const doc of votesDue.docs) {
     await db.runTransaction(async (tx) => {
       const call = await loadCall(tx, doc.ref);
-      if (!call || !voteIsOver(call.prediction, call.positions, Date.now())) return;
+      if (!call) return;
+      const members = await arenaMembers(tx, call.prediction.arenaId);
+      if (!voteIsOver(call.prediction, members, Date.now())) return;
       finishVote(tx, doc.ref, call, call.prediction.votes ?? {});
     });
   }

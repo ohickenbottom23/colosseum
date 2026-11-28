@@ -12,7 +12,7 @@ service cloud.firestore {
       return signedIn() && arenaId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.arenaIds;
     }
 
-    // anyone signed in can see players (name, photo, glory, record).
+    // anyone signed in can see players (name, photo, glory, record, missed and overruled calls).
     // nobody writes them from the app, only Cloud Functions do
     match /users/{uid} {
       allow read: if signedIn();
@@ -33,7 +33,8 @@ service cloud.firestore {
     }
 
     // calls are only visible to members of the arena they were posted in.
-    // made and changed only by Cloud Functions
+    // made and changed only by Cloud Functions, including disputes and the votes on them
+    // (any arena member can vote, through voteOnDispute, so nobody can stuff the ballot)
     match /predictions/{predictionId} {
       allow read: if inArena(resource.data.arenaId);
       allow write: if false;
@@ -57,31 +58,34 @@ service cloud.firestore {
         return inArena(theCall().arenaId) && theCall().text != "";
       }
 
-      // one reaction per person per call, saved under your own uid. pick, switch, or take it back
-      match /reactions/{uid} {
-        allow read: if inArena(theCall().arenaId);
-        allow create, update: if canTalk()
-          && request.auth.uid == uid
-          && request.resource.data.keys().hasOnly(["uid", "type", "createdAt"])
-          && request.resource.data.uid == uid
-          && request.resource.data.type in ["noshot", "lockit", "cap"]
-          && request.resource.data.createdAt == request.time;
-        allow delete: if signedIn() && request.auth.uid == uid;
+      // a typed comment: some text, up to 200 characters
+      function isComment(data) {
+        return data.keys().hasOnly(["uid", "text", "createdAt", "edited"])
+          && data.text is string
+          && data.text.size() > 0
+          && data.text.size() <= 200;
       }
 
-      // short comments. you can edit or delete your own, nobody else's
+      // a quick reaction: one of the three presets, with no text
+      function isQuickReaction(data) {
+        return data.keys().hasOnly(["uid", "text", "reaction", "createdAt", "edited"])
+          && data.reaction in ["noshot", "lockit", "cap"]
+          && data.text == "";
+      }
+
+      // the thread: typed comments and quick reactions. you can delete your own of either,
+      // and edit your own typed comments (a quick reaction has nothing to edit).
+      // "not the same reaction twice in a row" is checked in the app, since rules can't look at the latest message
       match /comments/{commentId} {
         allow read: if inArena(theCall().arenaId);
         allow create: if canTalk()
-          && request.resource.data.keys().hasOnly(["uid", "text", "createdAt", "edited"])
           && request.resource.data.uid == request.auth.uid
-          && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
-          && request.resource.data.text.size() <= 200
           && request.resource.data.createdAt == request.time
-          && request.resource.data.edited == false;
+          && request.resource.data.edited == false
+          && (isComment(request.resource.data) || isQuickReaction(request.resource.data));
         allow update: if canTalk()
           && resource.data.uid == request.auth.uid
+          && !("reaction" in resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["text", "edited"])
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
