@@ -36,7 +36,7 @@ function NewCallForm() {
   const router = useRouter();
   const params = useSearchParams();
   const { authUser, loading } = useAuthUser();
-  const players = usePlayers(!!authUser);
+  const players = usePlayers(authUser?.uid ?? null);
   const player = usePlayer(authUser?.uid ?? null);
   const arenas = useMyArenas(authUser?.uid ?? null);
   const myPositions = useMyPositions(authUser?.uid ?? null);

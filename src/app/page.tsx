@@ -22,7 +22,7 @@ import Avatar, { faceOf } from "./ui/Avatar";
 export default function Home() {
   const { authUser, loading, setupError, granted } = useAuthUser();
   const uid = authUser?.uid ?? null;
-  const players = usePlayers(!!authUser);
+  const players = usePlayers(authUser?.uid ?? null);
   const player = usePlayer(uid);
   const myPositions = useMyPositions(uid);
   const arenas = useMyArenas(uid);

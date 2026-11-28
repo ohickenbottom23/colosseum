@@ -100,6 +100,7 @@ Friends will try to cheat. Clients must never write glory, tokens, wins, calls, 
 - Settling, voiding, and the daily grant happen in Cloud Functions
 - Firestore rules block clients from editing those fields
 - Membership lives in two places that change together, only in Cloud Functions: `arenas/{id}.memberIds` and `users/{uid}.arenaIds`. The rules check `arenaIds` on your own user doc.
+- Players: you can read your own record and the records of people who share an arena with you, nobody else's. The app asks for exactly those (`usePlayers`: `arenaIds array-contains-any` your arenas), since the rules turn down any wider query.
 - Firestore rules: only members of a call's arena can read the call, its sides, and its trash talk. Queries must filter by `arenaId` (home uses `arenaId in [your arenas]`), or the rules turn them down.
 - `npm run test:rules` and `npm run test:functions` run against the emulators. Add cases there when touching rules or functions.
 

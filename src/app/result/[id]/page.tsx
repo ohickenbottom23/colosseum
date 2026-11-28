@@ -23,7 +23,7 @@ export default function ResultPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { authUser, loading } = useAuthUser();
-  const players = usePlayers(!!authUser);
+  const players = usePlayers(authUser?.uid ?? null);
   const [call, setCall] = useState<Prediction | null>(null);
   const [arena, setArena] = useState<Arena | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);

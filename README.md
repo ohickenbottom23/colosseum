@@ -67,58 +67,38 @@ npm run test:functions
 
 ## Deploying
 
-Local dev runs on the emulators with a fake `demo-colosseum` project. Going live uses a real Firebase project: Firestore, Auth and Cloud Functions, plus Firebase App Hosting to run the Next.js app. App Hosting builds from GitHub every time `main` is pushed. Steps marked **(console)** are clicks in the Firebase or Google Cloud console. The rest are terminal commands.
+Production is the Firebase project `colosseum-758d1` (the default in `.firebaserc`). Local dev doesn't touch it: `.env.local` points the app at the emulators, and every emulator and test script passes `--project demo-colosseum` (the `demo` alias).
 
-### 1. Make the project (console)
+The Next.js app runs on Firebase App Hosting, backend `colosseum` in `us-central1`, deployed from this folder (not from GitHub). Its production settings are in `apphosting.yaml`, and the files it skips are under `apphosting` in `firebase.json` (plus everything in `.gitignore`).
 
-1. At console.firebase.google.com, add a project. Google Analytics isn't needed.
-2. Upgrade it to the **Blaze** plan. Cloud Functions, the 15 minute sweep and App Hosting all need it. Then set a budget alert in Google Cloud > Billing > Budgets & alerts (a few dollars is plenty for friend groups).
-3. Build > **Authentication** > Get started > Sign-in method > **Google** > Enable, and pick a support email.
-4. Build > **Firestore Database** > Create database > **production mode**. Pick `nam5 (United States)`. The location can't change later.
-5. Project settings > General > Your apps > the **Web** (`</>`) button. Name it, leave "Firebase Hosting" unchecked, and copy `apiKey` and `projectId` from the config it shows.
-
-### 2. Point the code at it (terminal)
+Deploy in this order (backend first, so the site never runs against old rules or functions):
 
 ```bash
-firebase login
-firebase use --add      # pick the new project, call it "prod"
+firebase deploy --only firestore:rules,firestore:indexes
 ```
-
-Fill in the three `REPLACE_ME` values in `apphosting.yaml`:
-- `NEXT_PUBLIC_FIREBASE_API_KEY` and `NEXT_PUBLIC_FIREBASE_PROJECT_ID` from step 1.5
-- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` = the app's own address, `colosseum--<project-id>.us-central1.hosted.app` (with the backend named `colosseum` in step 3). Not `<project-id>.firebaseapp.com`: phones sign in with a redirect, and browsers block that when the auth domain is a different site from the app. `next.config.ts` passes `/__/auth/...` through to Firebase's sign-in pages so the app's own address works.
-
-`.env.local` stays as it is, so local dev keeps using the emulators. Commit and push.
-
-Then deploy the backend (rules, indexes, functions):
 
 ```bash
-firebase deploy --only firestore,functions --project prod
+firebase deploy --only functions
 ```
 
-The first time, it turns on the Google Cloud APIs it needs, and asks how long to keep old function images (1 day is fine). The indexes take a few minutes to build after that.
+```bash
+firebase deploy --only apphosting
+```
 
-### 3. Host the app (console)
+The site is at https://colosseum--colosseum-758d1.us-central1.hosted.app.
 
-Build > **App Hosting** > Get started:
-- region `us-central1`
-- connect GitHub and pick this repo, root directory `/`, live branch `main`, automatic rollouts on
-- backend name `colosseum`
-- link it to the web app from step 1.5
+### Sign-in settings (console, done once)
 
-The first rollout starts right away. After that, every push to `main` deploys.
+Phones sign in with a redirect, which needs the app's own address as the auth domain (`NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` in `apphosting.yaml`). `next.config.ts` passes `/__/auth/...` through to Firebase's sign-in pages so that works. Google also needs to trust that address:
 
-### 4. Let sign-in work on that address (console)
+1. Firebase console > Authentication > Settings > **Authorized domains**: add `colosseum--colosseum-758d1.us-central1.hosted.app`.
+2. Google Cloud console > APIs & Services > **Credentials** > the "Web client (auto created by Google Service)":
+   - Authorized JavaScript origins: `https://colosseum--colosseum-758d1.us-central1.hosted.app`
+   - Authorized redirect URIs: `https://colosseum--colosseum-758d1.us-central1.hosted.app/__/auth/handler`
+3. Google Auth Platform > **Branding**: the app name and support email on the Google screen. **Audience**: publishing status "In production", not "Testing" (Testing only lets listed test users in).
 
-1. Firebase > Authentication > Settings > **Authorized domains** > add `colosseum--<project-id>.us-central1.hosted.app`.
-2. Google Cloud console > APIs & Services > **Credentials** (also under Google Auth Platform > Clients) > the "Web client (auto created by Google Service)":
-   - Authorized JavaScript origins: add `https://colosseum--<project-id>.us-central1.hosted.app`
-   - Authorized redirect URIs: add `https://colosseum--<project-id>.us-central1.hosted.app/__/auth/handler`
-3. Google Auth Platform > **Branding**: the app name and support email people see on the Google screen. Under **Audience**, make sure the publishing status is "In production", not "Testing". Testing only lets listed test users sign in, and just name and email need no review.
+A custom domain later (App Hosting > Settings > Domains) means repeating these with that domain and changing the auth domain in `apphosting.yaml`.
 
-A custom domain later (App Hosting > Settings > Domains) means repeating step 4 and the auth domain value for that domain.
+### Installing on a phone
 
-### 5. Check it on a real phone
-
-- Sign in on an iPhone in Safari and on Android in Chrome, since phones use the redirect path.
-- Install it. On iPhone: Share > Add to Home Screen. On Android: Chrome's menu > Install app (or the banner). It opens full screen with the garnet C icon. The manifest is `src/app/manifest.ts`, and the icons are in `public/icons/` and `src/app/icon.png` / `apple-icon.png`. There's no offline mode yet.
+iPhone: Safari > Share > Add to Home Screen. Android: Chrome menu > Install app. It opens full screen with the garnet C icon (`src/app/manifest.ts`, `public/icons/`, `src/app/icon.png`, `src/app/apple-icon.png`). No offline mode yet.

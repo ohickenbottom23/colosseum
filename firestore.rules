@@ -12,10 +12,18 @@ service cloud.firestore {
       return signedIn() && arenaId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.arenaIds;
     }
 
-    // anyone signed in can see players (name, photo, glory, record, missed and overruled calls).
-    // nobody writes them from the app, only Cloud Functions do
+    // your own arenas, from your own player record
+    function myArenaIds() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.arenaIds;
+    }
+
+    // you can see yourself and the players who share an arena with you (name, photo, glory,
+    // record), nobody else. so a stranger who signs in can't look through everyone.
+    // a list has to ask for your arenas' players (arenaIds array-contains-any your arenas).
+    // nobody writes players from the app, only Cloud Functions do
     match /users/{uid} {
-      allow read: if signedIn();
+      allow get: if signedIn() && (request.auth.uid == uid || resource.data.arenaIds.hasAny(myArenaIds()));
+      allow list: if signedIn() && resource.data.arenaIds.hasAny(myArenaIds());
       allow write: if false;
 
       // which result screens you've already seen, so each one only shows once.

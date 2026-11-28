@@ -69,8 +69,23 @@ const as = (uid: string) => env.authenticatedContext(uid).firestore();
 const signedOut = () => env.unauthenticatedContext().firestore();
 
 describe("users", () => {
-  it("signed in players can see other players", async () => {
+  it("you can see yourself and the players in your arenas", async () => {
     await assertSucceeds(getDoc(doc(as("jake"), "users/maya")));
+    await assertSucceeds(getDoc(doc(as("sam"), "users/sam")));
+    // what the app asks for: everyone in your arenas
+    await assertSucceeds(getDocs(query(collection(as("maya"), "users"), where("arenaIds", "array-contains-any", ["third"]))));
+  });
+
+  it("you can't see players who aren't in any of your arenas", async () => {
+    await assertFails(getDoc(doc(as("maya"), "users/sam")));
+    // a stranger who just signed in (no arenas) can't see anyone but themselves
+    await assertFails(getDoc(doc(as("newbie"), "users/maya")));
+  });
+
+  it("you can't list every player, or another arena's players", async () => {
+    await assertFails(getDocs(collection(as("maya"), "users")));
+    await assertFails(getDocs(query(collection(as("maya"), "users"), where("arenaIds", "array-contains-any", ["roommates"]))));
+    await assertFails(getDocs(query(collection(as("maya"), "users"), where("arenaIds", "array-contains-any", ["third", "roommates"]))));
   });
 
   it("signed out people can't see anything", async () => {

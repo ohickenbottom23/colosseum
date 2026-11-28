@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, signOut, User as AuthUser } from "firebase/auth";
 import { collection, collectionGroup, doc, limit, onSnapshot, orderBy, query, QueryDocumentSnapshot, where } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
@@ -48,20 +48,28 @@ export function useAuthUser() {
   return { authUser, loading, setupError, granted, ready };
 }
 
-// every player. used to look up names and faces. arena pages filter it down to their members
-export function usePlayers(signedIn: boolean) {
-  const [players, setPlayers] = useState<User[]>([]);
+// you and everyone who shares an arena with you, for names and faces. arena pages filter it
+// down to their members. the rules only let you read players in your arenas, so this asks for
+// exactly those (array-contains-any takes up to 30 arenas, the most a player can be in)
+export function usePlayers(uid: string | null) {
+  const me = usePlayer(uid);
+  const [others, setOthers] = useState<User[]>([]);
+  const arenaKey = (me?.arenaIds ?? []).join(",");
 
   useEffect(() => {
-    if (!signedIn) return;
+    if (!arenaKey) {
+      setOthers([]);
+      return;
+    }
     return onSnapshot(
-      collection(db, "users"),
-      (snap) => setPlayers(snap.docs.map((d) => d.data() as User)),
-      () => setPlayers([])
+      query(collection(db, "users"), where("arenaIds", "array-contains-any", arenaKey.split(","))),
+      (snap) => setOthers(snap.docs.map((d) => d.data() as User)),
+      () => setOthers([])
     );
-  }, [signedIn]);
+  }, [arenaKey]);
 
-  return players;
+  // you're in that list once you're in an arena. before that, it's just you
+  return useMemo(() => (me && !others.some((p) => p.uid === me.uid) ? [me, ...others] : others), [me, others]);
 }
 
 // one player's record, kept in sync (your glory and tokens)

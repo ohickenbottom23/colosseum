@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "demo-colosseum"
+    "default": "colosseum-758d1",
+    "demo": "demo-colosseum"
   }
 }

@@ -36,7 +36,7 @@ export default function CallPage() {
   const disputeFromLink = params.get("dispute") === "1"; // "Dispute it" on the result screen
   const { authUser, loading, ready } = useAuthUser();
   const uid = authUser?.uid ?? null;
-  const players = usePlayers(!!authUser);
+  const players = usePlayers(authUser?.uid ?? null);
   const player = usePlayer(uid);
 
   // with an invite code we join the arena first, then load the call

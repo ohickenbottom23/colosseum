@@ -9,6 +9,20 @@
       "npm --prefix functions run build"
     ]
   },
+  "apphosting": {
+    "backendId": "colosseum",
+    "rootDir": "/",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "functions",
+      "tests",
+      "docs",
+      "firebase-debug.log",
+      "firebase-debug.*.log"
+    ],
+    "alwaysDeployFromSource": true
+  },
   "emulators": {
     "auth": {
       "port": 9099

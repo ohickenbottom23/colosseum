@@ -36,7 +36,7 @@ export default function LeaderboardPage() {
 function Leaderboard() {
   const router = useRouter();
   const { authUser, loading } = useAuthUser();
-  const players = usePlayers(!!authUser);
+  const players = usePlayers(authUser?.uid ?? null);
   const arenas = useMyArenas(authUser?.uid ?? null);
   const myPositions = useMyPositions(authUser?.uid ?? null);
   const [arenaId, setArenaId] = useState(useSearchParams().get("arena") ?? "");
