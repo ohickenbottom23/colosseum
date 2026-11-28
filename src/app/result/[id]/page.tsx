@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { collection, doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "@/firebase";
 import { useAuthUser, usePlayers } from "@/hooks";
-import { callInviteUrl, formatGlory, namesYouFirst } from "@/format";
+import { callInviteUrl, formatGlory, namesYouFirst, tokenProfit } from "@/format";
 import { formatMultiplier, progressToNext, rankName } from "@/lib/ranks";
 import { canDispute } from "@/lib/disputes";
 import { Arena, Position, Prediction } from "@/lib/types";
@@ -157,10 +157,10 @@ export default function ResultPage() {
               <strong>No tokens on this one</strong>
             ) : won ? (
               <>
-                <strong>+{profit} tokens</strong> · <span className="mult">{multiplier ? formatMultiplier(multiplier) : ""}</span>
+                <strong>{tokenProfit(profit)}</strong> · <span className="mult">{multiplier ? formatMultiplier(multiplier) : ""}</span>
               </>
             ) : (
-              <strong>−{mine.stake} tokens</strong>
+              <strong>{tokenProfit(profit)}</strong>
             )}
           </span>
         </p>

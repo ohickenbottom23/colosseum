@@ -14,7 +14,7 @@ import { RESOLVE_WINDOW_MS } from "@/lib/constants";
 import CallCard from "./CallCard";
 import CalledOutCard from "./CalledOutCard";
 import TabBar from "./TabBar";
-import SignInButton from "./SignInButton";
+import Landing from "./Landing";
 import NewArenaForm from "./NewArenaForm";
 import RankStrip from "./RankStrip";
 import Avatar, { faceOf } from "./ui/Avatar";
@@ -105,15 +105,8 @@ export default function Home() {
 
   if (loading) return <main><p>Loading...</p></main>;
 
-  if (!authUser) {
-    return (
-      <main>
-        <h1 className="wordmark">Colosseum</h1>
-        <p>Call it. Get proven right in front of your friends.</p>
-        <SignInButton />
-      </main>
-    );
-  }
+  // signed out with no shared link: the same look as the shared-link screen, minus the call
+  if (!authUser) return <Landing tagline="Call it. Get proven right in front of your friends." />;
 
   const nameOf = (id: string) => players.find((p) => p.uid === id)?.displayName ?? "Someone";
   const arenaName = (id: string) => arenas.find((a) => a.id === id)?.name ?? "";
@@ -154,11 +147,11 @@ export default function Home() {
     const mine = myPositions.get(c.id);
     if (c.status === "disputed") return `Result: ${c.outcome?.toUpperCase()}, but it's disputed. Waiting on the vote`;
     if (c.status === "void") {
-      if (mine?.result) return `Didn't count. ${resultLine(mine.result, true)}`;
+      if (mine?.result) return `Didn't count. ${resultLine(mine, true)}`;
       if (c.voidReason === "not_resolved" && c.creatorId === authUser?.uid) return "Didn't count. You didn't settle it in time";
       return "Didn't count";
     }
-    if (mine?.result) return `Result: ${c.outcome?.toUpperCase()}. ${resultLine(mine.result, false)}`;
+    if (mine?.result) return `Result: ${c.outcome?.toUpperCase()}. ${resultLine(mine, false)}`;
     return `Result: ${c.outcome?.toUpperCase()}`;
   }
 

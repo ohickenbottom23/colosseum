@@ -2055,3 +2055,20 @@ a.card-link {
 .result-summary-actions button.main {
   width: 100%;
 }
+
+/* the signed-out landing page. no call card in the middle, so it all sits together in the
+   middle of the screen instead of the steps dropping to the bottom */
+main.invite.landing {
+  justify-content: center;
+}
+
+main.invite.landing .how-it-works {
+  margin-top: 0;
+}
+
+/* its one line under the wordmark */
+.landing-tagline {
+  margin: 0 0 24px;
+  font-size: 18px;
+  font-weight: 700;
+}

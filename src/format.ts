@@ -32,13 +32,24 @@ export function formatGlory(glory: number): string {
   return String(Math.round(glory * 10) / 10);
 }
 
-// how a finished call went for you, in plain words
-export function resultLine(result: { tokenChange: number; gloryChange: number; won: boolean }, voided: boolean): string {
-  // the only time a voided call gives 0 back is when you took down a call about yourself
-  if (voided && result.tokenChange === 0) return "You took it down, so your tokens stayed in";
-  if (voided) return `You got your ${result.tokenChange} tokens back`;
-  if (result.won) return `You were right. +${formatGlory(result.gloryChange)} Glory, ${result.tokenChange} tokens back`;
-  return `You were wrong. −${formatGlory(-result.gloryChange)} Glory`;
+// a token change as profit: "+20 tokens", "−10 tokens", "+1 token". never "45 tokens back"
+export function tokenProfit(n: number): string {
+  const sign = n > 0 ? "+" : n < 0 ? "−" : "";
+  return `${sign}${Math.abs(n)} ${Math.abs(n) === 1 ? "token" : "tokens"}`;
+}
+
+// how a finished call went for you, in plain words. tokens are shown as profit (what you got
+// minus what you put in), so a refund is "no tokens won or lost"
+export function resultLine(mine: { stake: number; result?: { tokenChange: number; gloryChange: number; won: boolean } }, voided: boolean): string {
+  const result = mine.result;
+  if (!result) return "";
+  const profit = result.tokenChange - mine.stake;
+  // the only time a voided call gives you less back is when you took down a call about yourself
+  if (voided && profit < 0) return `You took it down, so you lost what you had on it: ${tokenProfit(profit)}`;
+  if (voided) return "No tokens won or lost";
+  if (mine.stake === 0) return result.won ? "You were right, with nothing on it" : "You were wrong, with nothing on it";
+  if (result.won) return `You were right. +${formatGlory(result.gloryChange)} Glory, ${tokenProfit(profit)}`;
+  return `You were wrong. −${formatGlory(-result.gloryChange)} Glory, ${tokenProfit(profit)}`;
 }
 
 // why a call didn't count
@@ -119,9 +130,9 @@ export function dayAndTime(time: number, now: number): string {
 }
 
 // the confirm line before settling, saying what it does to everyone's tokens:
-// "Riley loses 10 tokens, you get 15 back." people with nothing on it are left out
+// "Riley loses 10 tokens, you get +5 tokens." people with nothing on it are left out
 export function settleSummary(call: Prediction, positions: Position[], outcome: Side, myUid: string, nameOf: (uid: string) => string): string {
-  if (hasNoTakers(call, positions)) return "Nobody else picked a side, so it won't count and you get your tokens back.";
+  if (hasNoTakers(call, positions)) return "Nobody else picked a side, so it won't count. No tokens won or lost.";
 
   const tokens = (n: number) => `${n} ${n === 1 ? "token" : "tokens"}`;
   const payouts = settle(positions, outcome)
@@ -134,7 +145,10 @@ export function settleSummary(call: Prediction, positions: Position[], outcome: 
     const name = you ? "you" : nameOf(p.uid).split(" ")[0];
     const stake = positions.find((x) => x.uid === p.uid)!.stake;
     if (!p.won) return `${name} ${you ? "lose" : "loses"} ${tokens(stake)}`;
-    return `${name} ${you ? "get" : "gets"} ${p.tokenChange} back`;
+    // winners show what they come out ahead, not what comes back
+    const profit = p.tokenChange - stake;
+    if (profit === 0) return `${name} ${you ? "break" : "breaks"} even`;
+    return `${name} ${you ? "get" : "gets"} ${tokenProfit(profit)}`;
   });
 
   if (parts.length === 0) return "Nobody has tokens on it, so only Glory changes.";

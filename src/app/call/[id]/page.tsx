@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "@/firebase";
-import SignInButton from "../../SignInButton";
+import Landing from "../../Landing";
 import SharedCallInvite, { InvitePreview } from "../../SharedCallInvite";
 import ShareButton from "../../ShareButton";
 import TakeDown from "../../TakeDown";
@@ -124,15 +124,8 @@ export default function CallPage() {
   }
   // opened a shared link while signed out. sign in right here so they stay on this call
   if (!loading && !authUser && invitePreview) return <SharedCallInvite preview={invitePreview} />;
-  if (!loading && !authUser) {
-    return (
-      <main>
-        <h1 className="wordmark">Colosseum</h1>
-        <p>A friend sent you a call. Sign in to see it and pick a side.</p>
-        <SignInButton />
-      </main>
-    );
-  }
+  // signed out and the call can't be previewed (an old or broken link): the plain landing
+  if (!loading && !authUser) return <Landing tagline="A friend sent you a call. Sign in to see it and pick a side." />;
   if (!authUser || !call) return <main><p>Loading...</p></main>;
 
   const nameOf = (u: string) => players.find((p) => p.uid === u)?.displayName ?? "Someone";
@@ -275,9 +268,9 @@ export default function CallPage() {
           <h3>Didn&apos;t count</h3>
           <p>
             {voidReasonText(call.voidReason, nameOf(call.creatorId))}{" "}
-            {call.voidReason === "subject_killed" ? "Everyone else got their tokens back." : "Everyone got their tokens back."}
+            {call.voidReason === "subject_killed" ? "Nobody else won or lost tokens." : "Nobody won or lost tokens."}
           </p>
-          {mine?.result && <p>{resultLine(mine.result, true)}.</p>}
+          {mine?.result && call.voidReason === "subject_killed" && <p>{resultLine(mine, true)}.</p>}
         </div>
       )}
 

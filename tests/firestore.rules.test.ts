@@ -9,6 +9,7 @@ import {
   RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import {
+  addDoc,
   arrayUnion,
   collection,
   collectionGroup,
@@ -293,6 +294,16 @@ describe("trash talk", () => {
     await assertSucceeds(deleteDoc(doc(as("maya"), "predictions/p1/comments/r2")));
     await assertFails(deleteDoc(doc(as("maya"), "predictions/p1/comments/r1")));
     await assertSucceeds(deleteDoc(doc(as("jake"), "predictions/p1/comments/r1")));
+  });
+
+  // exactly what TrashTalk.tsx sends when you tap a quick reaction: a new message with an auto id
+  it("tapping a quick reaction on an open call posts it to the thread", async () => {
+    const thread = collection(as("maya"), "predictions/p1/comments");
+    for (const type of ["noshot", "lockit", "cap"]) {
+      await assertSucceeds(addDoc(thread, { uid: "maya", text: "", reaction: type, createdAt: serverTimestamp(), edited: false }));
+    }
+    // the old shape (one reaction per person, "type" instead of "reaction") doesn't go through
+    await assertFails(addDoc(thread, { uid: "maya", type: "lockit", createdAt: serverTimestamp() }));
   });
 
   it("members can see the thread", async () => {

@@ -26,7 +26,8 @@ export default function TrashTalk({
 }) {
   const messages = useTrashTalk(callId);
   const [text, setText] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(""); // shown by the comment box
+  const [reactError, setReactError] = useState(""); // shown right under the quick reactions, where you tapped
   const [posting, setPosting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -37,14 +38,16 @@ export default function TrashTalk({
   async function react(type: ReactionType) {
     const problem = canQuickReact(messages, myUid, type);
     if (problem) {
-      setError(problem);
+      setReactError(problem);
       return;
     }
-    setError("");
+    setReactError("");
     try {
       await addDoc(thread, { uid: myUid, text: "", reaction: type, createdAt: serverTimestamp(), edited: false });
     } catch (err) {
-      setError(errorText(err, "Couldn't post that"));
+      // say so where they tapped, and log it so a failed write is never silent
+      console.error("Posting a quick reaction failed", err);
+      setReactError(`Couldn't post that. ${errorText(err, "Try again.")}`);
     }
   }
 
@@ -61,7 +64,8 @@ export default function TrashTalk({
       await addDoc(thread, { uid: myUid, text: text.trim(), createdAt: serverTimestamp(), edited: false });
       setText("");
     } catch (err) {
-      setError(errorText(err, "Couldn't post that"));
+      console.error("Posting a comment failed", err);
+      setError(`Couldn't post that. ${errorText(err, "Try again.")}`);
     }
     setPosting(false);
   }
@@ -77,6 +81,7 @@ export default function TrashTalk({
       await updateDoc(doc(thread, c.id), { text: editText.trim(), edited: true });
       setEditingId(null);
     } catch (err) {
+      console.error("Editing a comment failed", err);
       setError(errorText(err, "Couldn't save that"));
     }
   }
@@ -86,6 +91,7 @@ export default function TrashTalk({
     try {
       await Promise.all(list.map((c) => deleteDoc(doc(thread, c.id))));
     } catch (err) {
+      console.error("Deleting from the thread failed", err);
       setError(errorText(err, "Couldn't delete that"));
     }
   }
@@ -112,6 +118,7 @@ export default function TrashTalk({
           ))}
         </div>
       )}
+      {reactError && <p className="error">{reactError}</p>}
 
       <ul className="comments">
         {talkLines(messages).map((line) => {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { callInviteUrl, formatGlory, namesYouFirst } from "@/format";
+import { callInviteUrl, formatGlory, namesYouFirst, tokenProfit } from "@/format";
 import { Arena, Position, Prediction } from "@/lib/types";
 import ShareButton from "./ShareButton";
 import AvatarStack from "./ui/AvatarStack";
@@ -30,13 +30,8 @@ export default function ResultSummary({
   // what it did to you, from what the server saved (the glory floor can make it less than the payout)
   const rank = mine?.rankResult;
   const gloryChange = rank ? Math.round((rank.gloryAfter - rank.gloryBefore) * 10) / 10 : null;
-  const tokenLine = !mine?.result
-    ? ""
-    : mine.stake === 0
-      ? "No tokens on this one"
-      : won
-        ? `+${mine.result.tokenChange - mine.stake} tokens`
-        : `−${mine.stake} tokens`;
+  // tokens as profit: what came back minus what you put in
+  const tokenLine = !mine?.result ? "" : mine.stake === 0 ? "No tokens on this one" : tokenProfit(mine.result.tokenChange - mine.stake);
 
   return (
     <div className="result result-summary">
